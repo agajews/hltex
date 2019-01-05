@@ -1,0 +1,12 @@
+\doc:
+The document environment is the only one which doesn't need to be indented.
+\sec{Some Words}
+Here are some words that are in this section.
+Math is fun, so here's an equation:
+\eq:
+    f(x) = x^2 + 3
+We might want to give our equation a label, like this:
+\eq{cubic}:
+    f(x) = x^3 - 4x^2 + 2
+We can reference our equation with Equation \ref{eq:cubic}.
+This is automatically joined with the non-breaking space \verb{~}.
