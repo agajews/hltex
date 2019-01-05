@@ -6,7 +6,7 @@ Math is fun, so here's an equation:
 \eq:
     f(x) = x^2 + 3
 We might want to give our equation a label, like this:
-\eq{cubic}:
+\eq[cubic]:
     f(x) = x^3 - 4x^2 + 2
 We can reference our equation with Equation \ref{eq:cubic}.
 This is automatically joined with the non-breaking space \verb{~}.

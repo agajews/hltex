@@ -65,6 +65,8 @@ class Translator:
         self.pos = 0
         self.text = text
 
+        self.in_document = False
+
     def parse_while(self, pred):
         # TODO: deal with unexpected EOF
         while self.pos < len(self.text) and pred(self.text[self.pos]):
@@ -116,7 +118,7 @@ class Translator:
                 self.error('Too few arguments provided to command `{}`'.format(name))
         return command.translate(args)
 
-    def do_environment(self, name):
+    def do_environment(self, name, for_document=False):
         self.parse_while(iswhitespace)
         opt = None
         if self.text[self.pos] == '[':
@@ -126,7 +128,7 @@ class Translator:
         if self.text[self.pos] == ':':
             self.parse_while(iswhitespace)
             if self.text[self.pos] == '\n':
-                body = self.extract_block(for_environment=True)
+                body = self.extract_block(for_environment=True, for_document=for_document)
             else:
                 body_start = self.pos
                 body_end = self.text.find('\n', self.pos)
@@ -135,7 +137,7 @@ class Translator:
                 self.pos = body_end
                 body = self.text[body_start:body_end]
             if name in environments:
-                return environments[name].translate(body)
+                return environments[name].translate(body, opt)
             else:
                 return latex_env(name, body=body)
         else:
@@ -195,16 +197,17 @@ class Translator:
         self.pos = old_pos
         return False
 
-    def extract_block(self, for_environment=False):
+    def extract_block(self, for_environment=False, for_document=False):
         # TODO: can this be broken up into smaller methods?
         body = ''
         token_start = self.pos
         self.parse_empty()
         indent_level = self.calc_indent_level()
-        if for_environment and not indent_level == self.indent_level + 1:
+        if for_environment and not for document and not indent_level == self.indent_level + 1:
             self.error('You must either put the body of an environment all on one line, or on an indented block on the following line')
-        elif not indent_level == 0:
+        elif not for_environment and not indent_level == 0:
             self.error('The document as a whole must not be indented')
+        indented = indent_level == self.indent_level + 1
         block_indent = self.indent_level
         self.indent_level = indent_level
 
@@ -216,7 +219,7 @@ class Translator:
                 indent_level = self.calc_indent_level()
                 if indent_level > self.indent_level:
                     self.error('Invalid indentation')  # TODO: be more verbose
-                elif indent_level <= block_indent:
+                elif indented and indent_level <= block_indent:
                     body += self.text[token_start:line_start + 1]
                     # pos is at the first non-whitespace of the line
                     return body
@@ -230,7 +233,11 @@ class Translator:
                 control_seq = self.get_control_seq()
                 if self.at_environment():  # TODO: make this more concise?
                     body += self.text[token_start:escape_start]
-                    body += self.do_environment(control_seq)
+                    for_document = False
+                    if not self.in_document and control_seq == 'document':
+                        self.in_document = True
+                        for_document = True
+                    body += self.do_environment(control_seq, for_document=for_document)
                     token_start = self.pos
                 elif control_seq in commands:
                     body += self.text[token_start:escape_start]
