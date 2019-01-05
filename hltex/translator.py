@@ -1,5 +1,5 @@
 class Command:
-    def __init__(name, translate_fn, nargs=0):
+    def __init__(self, name, translate_fn, nargs=0):
         self.name = name
         self.nargs = nargs
         self.translate_fn = translate_fn
@@ -9,7 +9,7 @@ class Command:
 
 
 class Environment:
-    def __init__(name, translate_fn):
+    def __init__(self, name, translate_fn):
         self.name = name
         self.translate_fn = translate_fn
 
@@ -17,16 +17,21 @@ class Environment:
         return self.translate_fn(body, opt)
 
 
-def latex_env(name, before='', body='', after=''):
-    return '\\begin{%s}%s%s%s\\end{%s}' % (name, before, body, after)
-
-
 def latex_cmd(name, args):
     return '\\%s%s' % (name, ''.join('{%s}' % arg for arg in args))
 
 
+def latex_env(name, before='', body='', after=''):
+    return '\\begin{%s}%s%s%s\\end{%s}' % (name, before, body, after, name)
+
+
 def translate_tbf(args):
     return latex_cmd('textbf', args)
+
+
+commands = {
+    'tbf': Command('tbf', translate_tbf, nargs=1)
+}
 
 
 def translate_eq(body, label):
@@ -37,12 +42,14 @@ def translate_eq(body, label):
 
 
 environments = {
-    'eq': Environment('eq', translate_eq, nopt=1)
+    'eq': Environment('eq', translate_eq)
 }
 
 
 class TranslationError(Exception):
-    pass
+    def __init__(self, msg):
+        self.msg = msg
+        super().__init__()
 
 
 def isnewline(char):
@@ -73,10 +80,10 @@ class Translator:
             self.pos += 1
 
     def parse_until(self, pred):
-        self.parse_while(self, lambda c: not pred(c))
+        self.parse_while(lambda c: not pred(c))
 
     def validate_indent_str(self):
-        if not all(s == ' ' for s in self.indent_str) or all(s == '\t' for s in self.indent_str):
+        if not (all(s == ' ' for s in self.indent_str) or all(s == '\t' for s in self.indent_str)):
             self.error('Invalid indentation; must be all spaces or all tabs')  # TODO: more verbose errors
 
     def level_of_indent(self, indent):
@@ -87,21 +94,27 @@ class Translator:
 
     def calc_indent_level(self):
         indent_start = self.pos
-        self.parse_while(isspace)  # precondition: we assume the current line isn't empty
+        self.parse_while(iswhitespace)  # precondition: we assume the current line isn't empty
         indent = self.text[indent_start:self.pos]
+        if len(indent) == 0:
+            return 0
         if self.indent_str == None:
             self.indent_str = indent
             self.validate_indent_str()
+        indent_level = self.level_of_indent(indent)
         if indent_level > self.indent_level and not indent_level == self.indent_level + 1:
             self.error('You can only indent one level at a time')
         return self.level_of_indent(indent)
 
     def parse_empty(self):
-        while self.pos < len(text):
+        # print('parsing empty')
+        while self.pos < len(self.text):
+            # print(self.pos)
             line_end = self.text.find('\n', self.pos)
             if line_end == -1:
                 line_end = len(self.text)
-            if not str.isspace(self.text[self.pos:line_end]):
+            if not str.isspace(self.text[self.pos:line_end + 1]):
+                # print('`{}` is not a space'.format(self.text[self.pos:line_end]))
                 break
             self.pos = line_end + 1
 
@@ -126,6 +139,7 @@ class Translator:
             opt = body
         self.parse_while(iswhitespace)
         if self.text[self.pos] == ':':
+            self.pos += 1
             self.parse_while(iswhitespace)
             if self.text[self.pos] == '\n':
                 body = self.extract_block(for_environment=True, for_document=for_document)
@@ -144,11 +158,12 @@ class Translator:
             self.error('Environments must be followed by colons')
 
     def get_control_seq(self):
+        control_start = self.pos
         self.parse_while(str.isalpha)
         if self.pos == control_start:
             self.pos += 1  # control symbols are only one character long
         # pos should be at the first non-alpha character
-        control_seq = text[control_start:self.pos]
+        control_seq = self.text[control_start:self.pos]
         return control_seq
 
     def extract_opt(self):
@@ -168,7 +183,6 @@ class Translator:
             if self.text[self.pos] == '\\':
                 escape_start = self.pos
                 self.pos += 1
-                control_start = self.pos
                 control_seq = self.get_control_seq()
                 if control_seq in environments:
                     self.error('You can\'t start an environment from a command body')
@@ -184,12 +198,14 @@ class Translator:
     def at_environment(self):
         old_pos = self.pos
         self.parse_while(iswhitespace)
+        # print('checking at environment')
+        # print(self.text[self.pos:self.pos+10])
         if self.text[self.pos] == '[':
             self.parse_until(is_opt_end)
             if self.text[self.pos] != ']':
                 self.pos = old_pos
                 return False
-        self.pos += 1
+            self.pos += 1
         self.parse_while(iswhitespace)
         if self.text[self.pos] == ':':
             self.pos = old_pos
@@ -200,10 +216,13 @@ class Translator:
     def extract_block(self, for_environment=False, for_document=False):
         # TODO: can this be broken up into smaller methods?
         body = ''
+        # print('starting block at {}, `{}`'.format(self.pos, self.text[self.pos:self.pos+10]))
         token_start = self.pos
         self.parse_empty()
+        # print('finished parsing empty')
         indent_level = self.calc_indent_level()
-        if for_environment and not for document and not indent_level == self.indent_level + 1:
+        # print(indent_level)
+        if for_environment and not for_document and not indent_level == self.indent_level + 1:
             self.error('You must either put the body of an environment all on one line, or on an indented block on the following line')
         elif not for_environment and not indent_level == 0:
             self.error('The document as a whole must not be indented')
@@ -211,32 +230,39 @@ class Translator:
         block_indent = self.indent_level
         self.indent_level = indent_level
 
-        while self.pos < len(text):
+        while self.pos < len(self.text):
             self.parse_until(lambda c: c == '\\' or c == '\n')
             if self.text[self.pos] == '\n':
                 self.parse_empty()
                 line_start = self.pos
                 indent_level = self.calc_indent_level()
+                # print(indent_level)
                 if indent_level > self.indent_level:
                     self.error('Invalid indentation')  # TODO: be more verbose
-                elif indented and indent_level <= block_indent:
-                    body += self.text[token_start:line_start + 1]
-                    # pos is at the first non-whitespace of the line
-                    return body
-                else:
-                    raise Exception('When would this happen?')  # TODO: be better about this error
+                elif indented:
+                    if indent_level <= block_indent:
+                        body += self.text[token_start:line_start + 1]
+                        # pos is at the first non-whitespace of the line
+                        return body
+                    else:
+                        # print(self.pos)
+                        # print(self.text[self.pos:self.pos + 10])
+                        raise Exception('When would this happen?')  # TODO: be better about this error
 
             elif self.text[self.pos] == '\\':
+                # print('Found escape at pos {}'.format(self.pos))
                 escape_start = self.pos
                 self.pos += 1
-                control_start = self.pos
                 control_seq = self.get_control_seq()
+                # print(control_seq)
                 if self.at_environment():  # TODO: make this more concise?
+                    # print('at environment')
                     body += self.text[token_start:escape_start]
                     for_document = False
                     if not self.in_document and control_seq == 'document':
                         self.in_document = True
                         for_document = True
+                    # print('Doing environment `{}`'.format(control_seq))
                     body += self.do_environment(control_seq, for_document=for_document)
                     token_start = self.pos
                 elif control_seq in commands:
@@ -250,11 +276,11 @@ class Translator:
     def translate(self):
         try:
             return self.extract_block()
-        except TranslationError e:
+        except TranslationError as e:
             self.print_error(e.msg)  # XXX: check whether this works (is it .msg?)
 
     def error(self, msg):
         raise TranslationError(msg)
 
     def print_error(self, msg):
-        print('{} at char {}'.format(self.pos))  # TODO: better errors
+        print('{} at char {}'.format(msg, self.pos))  # TODO: better errors

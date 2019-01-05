@@ -9,12 +9,11 @@ def test_hello():
     source = dedent('''
     \\documentclass{article}
     \\document:
-        Hello?
+    Hello?
     ''')
     assert translate(source) == dedent(
     '''
     \\documentclass{article}
     \\begin{document}
-        Hello?
-    \\end{document}
-    ''')
+    Hello?
+    \\end{document}''')
