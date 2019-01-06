@@ -427,6 +427,16 @@ def test_do_environment():
     assert source[translator.pos] == 'g'
 
 
+def test_do_environment_args():
+    source = '\n    hello\n    \ngoodbye'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    res = translator.do_environment(Environment('test', lambda b, a: '\\begin{test}\\textbf{%s}%s\\end{test}' % (a, b), '!'), [Arg('arg1')], '', 0)
+    print(res)
+    assert res == '\\begin{test}\\textbf{arg1}\n    hello\n    \n\\end{test}'
+    assert source[translator.pos] == 'g'
+
+
 def test_do_environment_bad():
     source = '\nhello\n\ngoodbye'
     translator = Translator(source)
