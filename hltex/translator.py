@@ -322,12 +322,13 @@ class Translator:
         args, argstr = self.extract_args(max_args=len(command.params))
         return command.translate(args)
 
-    def do_environment(self, environment, args, argstr, for_document=False):
+    def do_environment(self, environment, args, argstr, outer_indent, for_document=False):
         '''
         environment: either an `Environment` object to do the translation, or a string,
             the name of a LaTeX environment for which to insert a corresponding begin/end
         args: a list of `Arg`s to pass to the environment if it's ours
         argstr: a LaTeX string containing the arguments to pass if it's a LaTeX environment
+        outer_indent: indentation level of the enclosing environment, or 0 if unenclosed
         for_document: bool, True if parsing the `document` environment (for the first time), False otherwise
         precondition: `self.pos` is at the first character after the colon
             (e.g. a newline, but also possibly some other whitespace or a non-alph character for one-liners)
@@ -348,6 +349,8 @@ class Translator:
         self.parse_while(iswhitespace)
         if self.text[self.pos] == '\n':
             body = self.extract_block(for_environment=True, for_document=for_document)
+            if outer_indent > 0:
+                body += self.indent_str * outer_indent
         else:
             body_start = self.pos
             body_end = self.text.find('\n', self.pos)
@@ -404,15 +407,7 @@ class Translator:
                     elif indented:
                         if indent_level <= block_indent:
                             body += self.text[token_start:line_start]
-                            # pos is at the first non-whitespace of the line
                             return body
-                        # else:
-                        #     # print(self.pos)
-                        #     # print(self.text[self.pos:self.pos + 10])
-                        #     raise Exception('When would this happen?')  # TODO: be better about this error
-                        #     NOTE: the above happens if the current indentation is neither
-                        #     the outer (block_indent) indentation nor more indented than
-                        #     the inner indentation; this should be true for most lines
 
                 elif self.text[self.pos] == '\\':
                     # print('Found escape at pos {}'.format(self.pos))
@@ -439,7 +434,11 @@ class Translator:
                                 environment = environments[control_seq]
                             else:
                                 environment = control_seq
-                            body += self.do_environment(environment, args, argstr, for_document=for_document) + '\n'
+                            if for_document:
+                                outer_indent = 0
+                            else:
+                                outer_indent = block_indent + 1
+                            body += self.do_environment(environment, args, argstr, outer_indent, for_document=for_document) + '\n'
                             indent_level = self.calc_indent_level()
                             if indented and indent_level <= block_indent:
                                 return body

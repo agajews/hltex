@@ -432,7 +432,7 @@ def test_do_environment():
     source = '\n    hello\n    \ngoodbye'
     translator = Translator(source)
     translator.indent_str = '    '
-    res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '')
+    res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
     assert res == '\\begin{test}\n    hello\n    \n\\end{test}'
     assert source[translator.pos] == 'g'
 
@@ -441,9 +441,19 @@ def test_extract_block_environment():
     source = '\n    hello\n    \\environment:\n        nested\ngoodbye'
     translator = Translator(source)
     translator.indent_str = '    '
-    # import pdb; pdb.set_trace()
     block = translator.extract_block(for_environment=True)
-    assert block == '\n    hello\n    \\begin{environment}\n        nested\n\\end{environment}\n'
+    assert block == '\n    hello\n    \\begin{environment}\n        nested\n    \\end{environment}\n'
     assert source[translator.pos] == 'g'
+
+
+def test_extract_block_environment_indented():
+    source = '\n        hello\n        \\environment:\n            nested\n    goodbye'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    translator.indent_level = 1
+    block = translator.extract_block(for_environment=True)
+    assert block == '\n        hello\n        \\begin{environment}\n            nested\n        \\end{environment}\n'
+    assert source[translator.pos] == ' '
+    assert translator.pos == 56
 
 
