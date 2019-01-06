@@ -440,10 +440,10 @@ class Translator:
                                 environment = environments[control_seq]
                             else:
                                 environment = control_seq
-                            if for_document or not for_environment:
-                                outer_indent = 0
-                            else:
+                            if indented:
                                 outer_indent = block_indent + 1
+                            else:
+                                outer_indent = 0
                             body += self.do_environment(environment, args, argstr, outer_indent, for_document=next_for_document) + '\n'
                             indent_level = self.calc_indent_level()
                             if indented and indent_level <= block_indent:

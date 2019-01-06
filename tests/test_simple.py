@@ -70,3 +70,25 @@ def test_indented_bad(capsys):
     assert 'document as a whole must not be indented' in capsys.readouterr().err
 
 
+def test_equation():
+    source = dedent('''
+    \\documentclass{article}
+    \\document:
+        Here is an equation:
+        \\equation:
+            f(x) = x^2
+    ''')
+    res = translate(source)
+    print(res)
+    assert res == dedent(
+    '''
+    \\documentclass{article}
+    \\begin{document}
+        Here is an equation:
+        \\begin{equation}
+            f(x) = x^2
+        \\end{equation}
+    \\end{document}
+    ''')
+
+
