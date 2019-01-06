@@ -431,6 +431,15 @@ def test_do_environment():
     assert source[translator.pos] == 'g'
 
 
+def test_do_environment_bad():
+    source = '\nhello\n\ngoodbye'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    with pytest.raises(TranslationError) as excinfo:
+        translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
+    assert 'indented block on the following line' in excinfo.value.msg
+
+
 def test_extract_block_environment():
     source = '\n    hello\n    \\environment:\n        nested\ngoodbye'
     translator = Translator(source)
@@ -438,6 +447,15 @@ def test_extract_block_environment():
     block = translator.extract_block(for_environment=True)
     assert block == '\n    hello\n    \\begin{environment}\n        nested\n    \\end{environment}\n'
     assert source[translator.pos] == 'g'
+
+
+def test_extract_block_nonenvironment_bad():
+    source = '\n    hello\n    \n    goodbye'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    with pytest.raises(TranslationError) as excinfo:
+        block = translator.extract_block(for_environment=False)
+    assert 'document as a whole must not be indented' in excinfo.value.msg
 
 
 def test_extract_block_environment_indented():
@@ -528,5 +546,17 @@ def test_double_document():
     \\end{document}
     \\end{document}
     ''')
+
+
+def test_indented_bad(capsys):
+    source = '''
+    \\documentclass{article}
+    \\document:
+    Hello?
+    \\document:
+        Goodbye
+    '''
+    res = translate(source)
+    assert 'document as a whole must not be indented' in capsys.readouterr().err
 
 

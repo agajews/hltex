@@ -1,3 +1,6 @@
+import sys
+
+
 class Arg:
     def __init__(self, contents, optional=False):
         self.contents = contents
@@ -465,4 +468,4 @@ class Translator:
         raise TranslationError(msg)
 
     def print_error(self, msg):
-        print('{} at char {}'.format(msg, self.pos))  # TODO: better errors
+        sys.stderr.write('{} at char {}'.format(msg, self.pos))  # TODO: better errors
