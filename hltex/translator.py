@@ -82,7 +82,7 @@ commands = {
 def translate_eq(body, label):
     before = ''
     if label is not None:
-        before = '\\label{%s}' % label
+        before = '\\label{eq:%s}' % label
     return latex_env('equation', before=before, body=body)
 
 
@@ -423,6 +423,7 @@ class Translator:
                 elif indented:
                     if indent_level <= prev_block_indent:
                         body += self.text[token_start:line_start]
+                        self.indent_level = indent_level
                         return body
 
             elif self.text[self.pos] == '\\':
@@ -450,16 +451,16 @@ class Translator:
                             environment = environments[control_seq]
                         else:
                             environment = control_seq
-                        if for_document or not for_environment:
-                            outer_indent = 0
-                        else:
+                        if indented:
                             outer_indent = prev_block_indent + 1
+                        else:
+                            outer_indent = 0
                         body += self.do_environment(environment, args, argstr, outer_indent, for_document=next_for_document) + '\n'
                         indent_level = self.calc_indent_level()
                         if indented and indent_level <= prev_block_indent:
+                            self.indent_level = indent_level
                             return body
                         token_start = self.pos
-
                     else:
                         body += '\\' + control_seq + argstr + self.text[whitespace_start:self.pos]
                 token_start = self.pos
