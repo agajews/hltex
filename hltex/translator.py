@@ -5,6 +5,13 @@ class Arg:
 
 
 def resolve_args(params, args):
+    '''
+    params: a string consisting of `!`s and `?`s, where `!`s represent required arguments
+        and `!`s represent optional arguments
+    args: a list of `Arg`s to be resolved with the `params` string
+    errors: if there is a missing required argument or a superfluous optional argument
+    returns: a list of `Arg`s with additional `None`s for missing optional arguments
+    '''
     all_args = []
     arg_num = 0
     for param in self.params:
