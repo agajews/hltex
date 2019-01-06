@@ -139,6 +139,7 @@ class Translator:
     def level_of_indent(self, indent):
         '''
         indent: str
+        precondition: `self.indent_str` is not None
         errors: if `len(indent)` isn't a multiple of `len(self.indent_str)`
         returns: the whole number of non-overlapping `self.indent_str` in `indent`
             (i.e. the indentation level where `self.indent_str` is the base unit of indentation)
@@ -149,10 +150,14 @@ class Translator:
         return len(indent) // len(self.indent_str)
 
     def calc_indent_level(self):
-        # TODO: make sure self.pos actually is at the stat of a line
+        # TODO: make sure self.pos actually is at the start of a line
         '''
         precondition: `self.pos` is at the start of a line
-        errors: if the current line isn't well-indented
+        postcondition: `self.pos` is at the first non-whitespace character of the current line,
+            or at the newline after the line if it is empty, or at `len(self.text)` if it
+            is at the end of the efile
+        errors: if the current line isn't well-indented (e.g. if it is more than one
+            deeper than the current level)
         returns: the indentation level of the current line, in terms of `self.indent_str` units
         '''
         indent_start = self.pos
