@@ -7,28 +7,31 @@ class Arg:
         return self.__dict__ == other.__dict__
 
 
-def resolve_args(params, args):
+def resolve_args(name, params, args):
     '''
     params: a string consisting of `!`s and `?`s, where `!`s represent required arguments
         and `!`s represent optional arguments
     args: a list of `Arg`s to be resolved with the `params` string
     errors: if there is a missing required argument or a superfluous optional argument
     returns: a list of `Arg`s with additional `None`s for missing optional arguments
+    raises: Exception if passed more args than params
     '''
     all_args = []
     arg_num = 0
-    for param in self.params:
+    if len(args) > len(params):
+        raise Exception('When would this happen?')  # TODO: be clearer about internal errors
+    for param in params:
         if param == '!':
             if arg_num < len(args) and not args[arg_num].optional:
-                all_args.append(args[arg_num])
+                all_args.append(args[arg_num].contents)
                 arg_num += 1
             elif arg_num >= len(args):
-                raise TranslationError('Missing required argument for command `{}`'.format(self.name))
+                raise TranslationError('Missing required argument for command `{}`'.format(name))
             else:
-                raise TranslationError('Superfluous optional argument provided to command `{}`'.format(self.name))
+                raise TranslationError('Superfluous optional argument provided to command `{}`'.format(name))
         else:
             if arg_num < len(args) and args[arg_num].optional:
-                all_args.append(args[arg_num])
+                all_args.append(args[arg_num].contents)
                 arg_num += 1
             else:
                 all_args.append(None)
@@ -42,7 +45,7 @@ class Command:
         assert all([p in '!?' for p in params])
 
     def translate(self, args):
-        return self.translate_fn(*resolve_args(self.params, args))
+        return self.translate_fn(*resolve_args(self.name, self.params, args))
 
 
 class Environment:
@@ -53,7 +56,7 @@ class Environment:
         assert all([p in '!?' for p in params])
 
     def translate(self, body, args):
-        return self.translate_fn(body, *resolve_args(self.params, args))
+        return self.translate_fn(body, *resolve_args(self.name, self.params, args))
 
 
 def latex_cmd(name, args):
@@ -233,7 +236,7 @@ class Translator:
                     #     self.error('You can\'t start an environment from a command body')
                     body += self.text[token_start:escape_start]
                     if control_seq in commands:
-                        body += self.do_command(control_seq)
+                        body += self.do_command(commands[control_seq])
                     else:
                         _, argstr = self.extract_args()
                         body += '\\' + control_seq + argstr
@@ -297,9 +300,9 @@ class Translator:
                 break
         return args, argstr
 
-    def do_command(self, name):
+    def do_command(self, command):
         '''
-        name: str representing the name of the current command
+        command: `Command` object representing the command to execute
         precondition: `self.pos` is at the first character after the name of the command
             (e.g. a '{', but also possibly some whitespace)
         postcondition: `self.pos` is at the first character after the last argument of the command
@@ -309,17 +312,9 @@ class Translator:
             if the arguments are ill-formed (e.g. contain environments)
         returns: a LaTeX string representing the result of the command
         '''
-        command = commands[name]
-        if command.nargs == 0:
+        if len(command.params) == 0:  # this is just for efficiency
             return command.translate([])
-        args = []
-        for arg in range(command.nargs):
-            self.parse_while(iswhitespace)
-            if self.text[self.pos] == '{':
-                self.pos += 1
-                args.append(self.extract_arg())
-            else:
-                self.error('Too few arguments provided to command `{}`'.format(name))
+        args, argstr = self.extract_args(max_args=len(command.params))
         return command.translate(args)
 
     def do_environment(self, name, args, argstr, for_document=False):
@@ -416,7 +411,7 @@ class Translator:
                 # print(control_seq)
                 body += self.text[token_start:escape_start]
                 if control_seq in commands:
-                    body += self.do_command(control_seq)
+                    body += self.do_command(commands[control_seq])
                 else:
                     args, argstr = self.extract_args()
                     whitespace_start = self.pos

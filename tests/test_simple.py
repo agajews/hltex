@@ -1,6 +1,6 @@
 from textwrap import dedent
 import pytest
-from hltex.translator import Translator, TranslationError, Arg
+from hltex.translator import Translator, TranslationError, Arg, Command, Environment, resolve_args
 
 def translate(source):
     translator = Translator(source)
@@ -318,5 +318,50 @@ def test_extract_args_max_args_less():
     assert args == [Arg('arg1'), Arg('arg2', optional=True)]
     assert argstr == '{arg1}  [arg2]'
     assert source[translator.pos] == ' '
+
+
+def test_resolve_args_good():
+    assert resolve_args('test', '!!', [Arg('arg1'), Arg('arg2')]) == ['arg1', 'arg2']
+    assert resolve_args('test', '', []) == []
+    assert resolve_args('test', '??', [Arg('arg1', optional=True), Arg('arg2', optional=True)]) == ['arg1', 'arg2']
+    assert resolve_args('test', '??', [Arg('arg1', optional=True)]) == ['arg1', None]
+    assert resolve_args('test', '!??', [Arg('arg1'), Arg('arg2', optional=True)]) == ['arg1', 'arg2', None]
+    assert resolve_args('test', '?!?', [Arg('arg1', optional=True), Arg('arg2')]) == ['arg1', 'arg2', None]
+    assert resolve_args('test', '?!?', [Arg('arg1'), Arg('arg2', optional=True)]) == [None, 'arg1', 'arg2']
+
+
+def test_resolve_args_bad():
+    with pytest.raises(TranslationError) as excinfo:
+        resolve_args('test', '!!', [Arg('arg1')])
+    assert 'Missing required' in excinfo.value.msg
+
+    with pytest.raises(TranslationError) as excinfo:
+        resolve_args('test', '?!!', [Arg('arg1')])
+    assert 'Missing required' in excinfo.value.msg
+
+    with pytest.raises(TranslationError) as excinfo:
+        resolve_args('test', '!?!', [Arg('arg1')])
+    assert 'Missing required' in excinfo.value.msg
+
+    with pytest.raises(TranslationError) as excinfo:
+        resolve_args('test', '!?!', [Arg('arg1', optional=True)])
+    assert 'Superfluous optional' in excinfo.value.msg
+
+
+def test_do_command():
+    source = '{arg1}[arg2]{arg1}some text'
+    translator = Translator(source)
+    res = translator.do_command(Command('test', lambda a: '\\textbf{%s}' % a, '!'))
+    assert res == '\\textbf{arg1}'
+    assert source[translator.pos] == '['
+
+
+def test_do_command_multiple():
+    source = '{arg1}[arg2]{arg1}some text'
+    translator = Translator(source)
+    res = translator.do_command(Command('test', lambda a, b: '\\textbf{%s, %s}' % (a, b), '!?'))
+    assert res == '\\textbf{arg1, arg2}'
+    assert source[translator.pos] == '{'
+    assert translator.pos == 12
 
 
