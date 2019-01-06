@@ -17,7 +17,7 @@ def test_hello():
     \\documentclass{article}
     \\begin{document}
     Hello?
-    \\end{document}''')
+    \\end{document}\n''')
 
 
 def test_parse_while():
@@ -91,7 +91,8 @@ def test_calc_indent_level_good():
     translator = Translator(source)
     translator.indent_str = '    '
     assert translator.calc_indent_level() == 1
-    assert source[translator.pos] == 's'
+    assert source[translator.pos] == ' '
+    assert translator.pos == 0
 
 
 def test_calc_indent_level_empty():
@@ -99,7 +100,8 @@ def test_calc_indent_level_empty():
     translator = Translator(source)
     translator.indent_str = '    '
     assert translator.calc_indent_level() == 1
-    assert source[translator.pos] == '\n'
+    assert source[translator.pos] == ' '
+    assert translator.pos == 0
 
 
 def test_calc_indent_level_end():
@@ -107,7 +109,7 @@ def test_calc_indent_level_end():
     translator = Translator(source)
     translator.indent_str = '    '
     assert translator.calc_indent_level() == 1
-    assert translator.pos == 4
+    assert translator.pos == 0
 
 def test_calc_indent_level_double():
     source = '        some text'
@@ -413,7 +415,8 @@ def test_extract_block_nested():
     translator.indent_str = '    '
     translator.indent_level = 1
     assert translator.extract_block(for_environment=True) == '\n        hello\n    \n'
-    assert source[translator.pos] == 'g'
+    assert source[translator.pos] == ' '
+    assert translator.pos == 20
 
 
 def test_extract_block_nested_end():
@@ -423,5 +426,24 @@ def test_extract_block_nested_end():
     translator.indent_level = 1
     assert translator.extract_block(for_environment=True) == '\n        hello\n    \n    '
     assert translator.pos == len(source)
+
+
+def test_do_environment():
+    source = '\n    hello\n    \ngoodbye'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '')
+    assert res == '\\begin{test}\n    hello\n    \n\\end{test}'
+    assert source[translator.pos] == 'g'
+
+
+def test_extract_block_environment():
+    source = '\n    hello\n    \\environment:\n        nested\ngoodbye'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    # import pdb; pdb.set_trace()
+    block = translator.extract_block(for_environment=True)
+    assert block == '\n    hello\n    \\begin{environment}\n        nested\n\\end{environment}\n'
+    assert source[translator.pos] == 'g'
 
 

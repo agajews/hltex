@@ -159,9 +159,7 @@ class Translator:
         # TODO: make sure self.pos actually is at the start of a line
         '''
         precondition: `self.pos` is at the start of a line
-        postcondition: `self.pos` is at the first non-whitespace character of the current line,
-            or at the newline after the line if it is empty, or at `len(self.text)` if it
-            is at the end of the efile
+        postcondition: `self.pos` is where it started
         errors: if the current line isn't well-indented (e.g. if it is more than one
             deeper than the current level)
         returns: the indentation level of the current line, in terms of `self.indent_str` units
@@ -177,7 +175,9 @@ class Translator:
         indent_level = self.level_of_indent(indent)
         if indent_level > self.indent_level and not indent_level == self.indent_level + 1:
             self.error('You can only indent one level at a time')
-        return self.level_of_indent(indent)
+        level = self.level_of_indent(indent)
+        self.pos = indent_start
+        return level
 
     def parse_empty(self):
         '''
@@ -322,14 +322,15 @@ class Translator:
         args, argstr = self.extract_args(max_args=len(command.params))
         return command.translate(args)
 
-    def do_environment(self, name, args, argstr, for_document=False):
+    def do_environment(self, environment, args, argstr, for_document=False):
         '''
-        name: str representing the name of the current environment
+        environment: either an `Environment` object to do the translation, or a string,
+            the name of a LaTeX environment for which to insert a corresponding begin/end
         args: a list of `Arg`s to pass to the environment if it's ours
         argstr: a LaTeX string containing the arguments to pass if it's a LaTeX environment
         for_document: bool, True if parsing the `document` environment (for the first time), False otherwise
         precondition: `self.pos` is at the first character after the colon
-            (e.g. a `:`, but also possible some whitespace or a non-alph character for one-liners)
+            (e.g. a newline, but also possibly some other whitespace or a non-alph character for one-liners)
         postcondition:
             for one-liner environments, `self.pos` is at the newline at the end of the line
                 or at `len(self.text)` if there isn't a trailing newline
@@ -342,6 +343,7 @@ class Translator:
             if there is indentation not following the opening of an environment
             if any indentation is ill-formed (e.g. not all tabs or spaces, or
                 not a whole repetition of `self.indent_str`)
+        returns: a translated LaTeX string for the environment
         '''
         self.parse_while(iswhitespace)
         if self.text[self.pos] == '\n':
@@ -353,18 +355,18 @@ class Translator:
                 body_end = len(self.text)
             self.pos = body_end
             body = self.text[body_start:body_end]
-        if name in environments:
-            return environments[name].translate(body, args)
+        if isinstance(environment, Environment):
+            return environment.translate(body, args)
         else:
-            return latex_env(name, body=body, args=argstr)
+            return latex_env(environment, body=body, args=argstr)
 
     def extract_block(self, for_environment=False, for_document=False):
         # TODO: can this be broken up into smaller methods?
         '''
         precondition: `self.pos` is at the first newline after the colon for environments,
             or the beginning of the file for the outermost call
-        postcondition: `self.pos` is at the first non-whitespace character of the line
-            following the block, or at `len(self.text)` if the block is at the end of the file
+        postcondition: `self.pos` is at the start of the line following the block, or at
+            `len(self.text)` if the block is at the end of the file
         errors:
             if there is an ill-formed environment (e.g. not indended after and not a one-liner)
             if there is indentation not following the opening of an environment
@@ -391,49 +393,62 @@ class Translator:
 
         while self.pos < len(self.text):
             self.parse_until(lambda c: c == '\\' or c == '\n')
-            if self.text[self.pos] == '\n':
-                self.parse_empty()
-                line_start = self.pos
-                indent_level = self.calc_indent_level()
-                # print(indent_level)
-                if indent_level > self.indent_level:
-                    self.error('Invalid indentation not following the opening of an environment')
-                elif indented:
-                    if indent_level <= block_indent:
-                        body += self.text[token_start:line_start]
-                        # pos is at the first non-whitespace of the line
-                        return body
-                    else:
-                        # print(self.pos)
-                        # print(self.text[self.pos:self.pos + 10])
-                        raise Exception('When would this happen?')  # TODO: be better about this error
+            if self.pos < len(self.text):
+                if self.text[self.pos] == '\n':
+                    self.parse_empty()
+                    line_start = self.pos
+                    indent_level = self.calc_indent_level()
+                    # print(indent_level)
+                    if indent_level > self.indent_level:  # TODO: remove this
+                        self.error('Invalid indentation not following the opening of an environment')
+                    elif indented:
+                        if indent_level <= block_indent:
+                            body += self.text[token_start:line_start]
+                            # pos is at the first non-whitespace of the line
+                            return body
+                        # else:
+                        #     # print(self.pos)
+                        #     # print(self.text[self.pos:self.pos + 10])
+                        #     raise Exception('When would this happen?')  # TODO: be better about this error
+                        #     NOTE: the above happens if the current indentation is neither
+                        #     the outer (block_indent) indentation nor more indented than
+                        #     the inner indentation; this should be true for most lines
 
-            elif self.text[self.pos] == '\\':
-                # print('Found escape at pos {}'.format(self.pos))
-                escape_start = self.pos
-                self.pos += 1
-                control_seq = self.get_control_seq()
-                # print(control_seq)
-                body += self.text[token_start:escape_start]
-                if control_seq in commands:
-                    body += self.do_command(commands[control_seq])
-                else:
-                    args, argstr = self.extract_args()
-                    whitespace_start = self.pos
-                    self.parse_while(iswhitespace)
-                    if self.text[self.pos] == ':':
-                        self.pos += 1
-                        # print('at environment')
-                        for_document = False
-                        if not self.in_document and control_seq == 'document':
-                            self.in_document = True
-                            for_document = True
-                        # print('Doing environment `{}`'.format(control_seq))
-                        body += self.do_environment(control_seq, args, argstr, for_document=for_document)
-                        token_start = self.pos
+                elif self.text[self.pos] == '\\':
+                    # print('Found escape at pos {}'.format(self.pos))
+                    escape_start = self.pos
+                    self.pos += 1
+                    control_seq = self.get_control_seq()
+                    # print(control_seq)
+                    body += self.text[token_start:escape_start]
+                    if control_seq in commands:
+                        body += self.do_command(commands[control_seq])
                     else:
-                        body += '\\' + control_seq + argstr + self.text[whitespace_start:self.pos]
-                token_start = self.pos
+                        args, argstr = self.extract_args()
+                        whitespace_start = self.pos
+                        self.parse_while(iswhitespace)
+                        if self.text[self.pos] == ':':
+                            self.pos += 1
+                            # print('at environment')
+                            for_document = False
+                            if not self.in_document and control_seq == 'document':
+                                self.in_document = True
+                                for_document = True
+                            # print('Doing environment `{}`'.format(control_seq))
+                            if control_seq in environments:
+                                environment = environments[control_seq]
+                            else:
+                                environment = control_seq
+                            body += self.do_environment(environment, args, argstr, for_document=for_document) + '\n'
+                            indent_level = self.calc_indent_level()
+                            if indented and indent_level <= block_indent:
+                                return body
+                            # if block_indent > 0:
+                            #     body += self.indent_str * block_indent
+                            token_start = self.pos
+                        else:
+                            body += '\\' + control_seq + argstr + self.text[whitespace_start:self.pos]
+                    token_start = self.pos
         body += self.text[token_start:]
         return body
 
