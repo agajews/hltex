@@ -226,9 +226,14 @@ class Translator:
         token_start = self.pos
         body = ''
         while self.pos < len(self.text):
-            self.parse_until(lambda c: c == '\\' or c == close)
+            self.parse_until(lambda c: c == '\\' or c == close or c == '{')
             if self.pos < len(self.text):
-                if self.text[self.pos] == '\\':
+                if self.text[self.pos] == '{':
+                    body += self.text[token_start:self.pos]
+                    self.pos += 1
+                    body += '{' + self.extract_arg(required=True) + '}'
+                    token_start = self.pos
+                elif self.text[self.pos] == '\\':
                     escape_start = self.pos
                     self.pos += 1
                     control_seq = self.get_control_seq()

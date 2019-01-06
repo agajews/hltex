@@ -218,7 +218,25 @@ def test_extract_arg_opt_end():
     assert translator.pos == len(source)
 
 
-# TODO: test extract_arg with nested commands
+def test_extract_arg_command():
+    source = 'my \\textbf{word}argument}some text'
+    translator = Translator(source)
+    assert translator.extract_arg() == 'my \\textbf{word}argument'
+    assert source[translator.pos] == 's'
+
+
+def test_extract_arg_command_nested():
+    source = 'my \\textbf{\\command[arg]\n{arg}}argument}some text'
+    translator = Translator(source)
+    assert translator.extract_arg() == 'my \\textbf{\\command[arg]\n{arg}}argument'
+    assert source[translator.pos] == 's'
+
+
+def test_extract_arg_command_crazy():
+    source = 'my \\textbf{word\\command[arg]{arg} [arg]\n{arg}}{arg }[arg]\n{\\:{\\@{\\@}}}argument}some text'
+    translator = Translator(source)
+    assert translator.extract_arg() == 'my \\textbf{word\\command[arg]{arg} [arg]\n{arg}}{arg }[arg]\n{\\:{\\@{\\@}}}argument'
+    assert source[translator.pos] == 's'
 
 
 def test_extract_arg_unmatched():
