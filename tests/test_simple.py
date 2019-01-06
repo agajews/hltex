@@ -457,12 +457,31 @@ def test_extract_block_environment_indented():
     assert translator.pos == 56
 
 
-def test_do_environment():
+def test_do_environment_nested():
     source = '\n    hello\n    \\environment:\n        nested\ngoodbye'
     translator = Translator(source)
     translator.indent_str = '    '
     res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
     assert res == '\\begin{test}\n    hello\n    \\begin{environment}\n        nested\n    \\end{environment}\n\\end{test}'
     assert source[translator.pos] == 'g'
+
+
+def test_do_environment_nested_end():
+    source = '\n    hello\n    \\environment:\n        nested\n'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
+    assert res == '\\begin{test}\n    hello\n    \\begin{environment}\n        nested\n    \\end{environment}\n\\end{test}'
+    assert translator.pos == len(source)
+
+
+def test_do_environment_nested_nonewline():
+    source = '\n    hello\n    \\environment:\n        nested'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
+    print(res)
+    assert res == '\\begin{test}\n    hello\n    \\begin{environment}\n        nested\n    \\end{environment}\n\\end{test}'
+    assert translator.pos == len(source)
 
 

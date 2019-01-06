@@ -449,6 +449,8 @@ class Translator:
                             body += '\\' + control_seq + argstr + self.text[whitespace_start:self.pos]
                     token_start = self.pos
         body += self.text[token_start:]
+        if body[-1] != '\n':
+            body += '\n'
         return body
 
     def translate(self):
