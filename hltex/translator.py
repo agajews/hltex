@@ -1,3 +1,6 @@
+import sys
+
+
 class Arg:
     def __init__(self, contents, optional=False):
         self.contents = contents
@@ -163,7 +166,7 @@ class Translator:
 
     def calc_indent_level(self):
         # TODO: make all functions that don't move self.pos clear from its name (e.g. peek_..., validate_...)
-        assert self.pos == 0 or isnewline(self.text[self.pos - 1])
+        #assert self.pos == 0 or isnewline(self.text[self.pos - 1]), "pos: {}, text: {}".format(self.pos, self.text[self.pos-1:self.pos+10])
         '''
         precondition: `self.pos` is at the start of a line
         postcondition: `self.pos` is where it started
@@ -373,6 +376,9 @@ class Translator:
     def extract_block(self, for_environment=False, for_document=False):
         # TODO: can this be broken up into smaller methods?
         '''
+        for_environment: whether being called from the start of an environment (as opposed
+            to the first recursive call, which is outside everything)
+        for_document: whether being called from the start of the first `document` environment
         precondition: `self.pos` is at the first newline after the colon for environments,
             or the beginning of the file for the outermost call
         postcondition: `self.pos` is at the start of the line following the block, or at
@@ -398,7 +404,7 @@ class Translator:
         elif not for_environment and not indent_level == 0:
             self.error('The document as a whole must not be indented')
         indented = indent_level == self.indent_level + 1
-        assert indented or not for_environment
+        #assert indented or not for_environment
         prev_block_indent = self.indent_level
         self.indent_level = indent_level
 
@@ -435,26 +441,25 @@ class Translator:
                     if self.text[self.pos] == ':':
                         self.pos += 1
                         # print('at environment')
-                        for_document = False
+                        next_for_document = False
                         if not self.in_document and control_seq == 'document':
                             self.in_document = True
-                            for_document = True
+                            next_for_document = True
                         # print('Doing environment `{}`'.format(control_seq))
                         if control_seq in environments:
                             environment = environments[control_seq]
                         else:
                             environment = control_seq
-                        if for_document:
+                        if for_document or not for_environment:
                             outer_indent = 0
                         else:
                             outer_indent = prev_block_indent + 1
-                        body += self.do_environment(environment, args, argstr, outer_indent, for_document=for_document) + '\n'
+                        body += self.do_environment(environment, args, argstr, outer_indent, for_document=next_for_document) + '\n'
                         indent_level = self.calc_indent_level()
                         if indented and indent_level <= prev_block_indent:
                             return body
-                        # if prev_block_indent > 0:
-                        #     body += self.indent_str * prev_block_indent
                         token_start = self.pos
+
                     else:
                         body += '\\' + control_seq + argstr + self.text[whitespace_start:self.pos]
                 token_start = self.pos
@@ -474,4 +479,4 @@ class Translator:
         raise TranslationError(msg)
 
     def print_error(self, msg):
-        print('{} at char {}'.format(msg, self.pos))  # TODO: better errors
+        sys.stderr.write('{} at char {}'.format(msg, self.pos))  # TODO: better errors
