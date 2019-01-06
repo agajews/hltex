@@ -159,3 +159,41 @@ def test_multiple_nested_environments():
     ''')
 
 
+def test_multiple_nested_environments():
+    source = dedent('''
+    \\document:
+    The document environment is the only one which doesn't need to be indented.
+    \\section{Some Words}
+    Here are some words that are in this section.
+    Math is fun, so here's an equation:
+    \\eq:
+        f(x) = x^2 + 3
+    We might want to give our equation a label, like this:
+    \\eq[cubic]:
+        f(x) = x^3 - 4x^2 + 2
+    We can reference our equation with Equation \\ref{eq:cubic}.
+    This is automatically joined with the non-breaking space \\verb{~}.
+    ''')
+    # import pdb; pdb.set_trace()
+    res = translate(source)
+    print(res)
+    assert res == dedent(
+    '''
+    \\begin{document}
+    The document environment is the only one which doesn't need to be indented.
+    \\section{Some Words}
+    Here are some words that are in this section.
+    Math is fun, so here's an equation:
+    \\begin{equation}
+        f(x) = x^2 + 3
+    \\end{equation}
+    We might want to give our equation a label, like this:
+    \\begin{equation}\\label{eq:cubic}
+        f(x) = x^3 - 4x^2 + 2
+    \\end{equation}
+    We can reference our equation with Equation \\ref{eq:cubic}.
+    This is automatically joined with the non-breaking space \\verb{~}.
+    \\end{document}
+    ''')
+
+

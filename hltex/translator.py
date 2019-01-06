@@ -82,7 +82,7 @@ commands = {
 def translate_eq(body, label):
     before = ''
     if label is not None:
-        before = '\\label{%s}' % label
+        before = '\\label{eq:%s}' % label
     return latex_env('equation', before=before, body=body)
 
 
