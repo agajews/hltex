@@ -166,7 +166,7 @@ class Translator:
 
     def calc_indent_level(self):
         # TODO: make all functions that don't move self.pos clear from its name (e.g. peek_..., validate_...)
-        #assert self.pos == 0 or isnewline(self.text[self.pos - 1]), "pos: {}, text: {}".format(self.pos, self.text[self.pos-1:self.pos+10])
+        assert self.pos == 0 or self.finished() or isnewline(self.text[self.pos - 1]), "pos: {}, text: {}".format(self.pos, self.text[self.pos-1:self.pos+10])
         '''
         precondition: `self.pos` is at the start of a line
         postcondition: `self.pos` is where it started
@@ -404,7 +404,7 @@ class Translator:
         elif not for_environment and not indent_level == 0:
             self.error('The document as a whole must not be indented')
         indented = indent_level == self.indent_level + 1
-        #assert indented or not for_environment
+        assert indented or not for_environment or for_document
         prev_block_indent = self.indent_level
         self.indent_level = indent_level
 
