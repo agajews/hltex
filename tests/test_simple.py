@@ -457,3 +457,12 @@ def test_extract_block_environment_indented():
     assert translator.pos == 56
 
 
+def test_do_environment():
+    source = '\n    hello\n    \\environment:\n        nested\ngoodbye'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
+    assert res == '\\begin{test}\n    hello\n    \\begin{environment}\n        nested\n    \\end{environment}\n\\end{test}'
+    assert source[translator.pos] == 'g'
+
+
