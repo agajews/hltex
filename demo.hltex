@@ -1,8 +1,10 @@
-\doc:
+\document:
 The document environment is the only one which doesn't need to be indented.
-\sec{Some Words}
+\section{Some Words}
 Here are some words that are in this section.
 Math is fun, so here's an equation:
+\mplfig:
+    x = '\\'
 \eq:
     f(x) = x^2 + 3
 We might want to give our equation a label, like this:
