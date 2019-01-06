@@ -175,19 +175,110 @@ class Translator:
 
     def parse_empty(self):
         '''
-        postcondition: `self.pos` is at the start of the next non-whitespace line, or at
-            `len(self.text)` if there isn't a next non-whitespace line
+        postcondition: `self.pos` is at the start of the next non-whitespace line (i.e.
+            after the preceeding newline), or at `len(self.text)` if there isn't a
+            next non-whitespace line
         '''
         # print('parsing empty')
         while self.pos < len(self.text):
             # print(self.pos)
             line_end = self.text.find('\n', self.pos)
             if line_end == -1:
-                line_end = len(self.text)
+                line_end = len(self.text) - 1
             if not str.isspace(self.text[self.pos:line_end + 1]):
                 # print('`{}` is not a space'.format(self.text[self.pos:line_end]))
                 break
             self.pos = line_end + 1
+
+    def get_control_seq(self):
+        '''
+        precondition: `self.pos` is at the first character after the escape character ('\\')
+        postcondition: `self.pos` is at the first character after the name of the command
+            (including for control symbols, commands whose names are single special characters),
+            or at `len(self.text)` if there isn't a character after the command name
+        returns: the name of the command
+        '''
+        control_start = self.pos
+        self.parse_while(str.isalpha)
+        if self.pos == control_start:
+            self.pos += 1  # control symbols are only one character long
+        # pos should be at the first non-alpha character
+        control_seq = self.text[control_start:self.pos]
+        return control_seq
+
+    def extract_arg(self, close='}'):
+        '''
+        close: the closing brace or bracket to the argument
+        precondition: `self.pos` is at the first character following the opening '{' or '['
+        postcondition: `self.pos` is at the first character following the closing '}' or ']';
+            `extract_arg` ignores everything except for other commands inside the braces
+        returns: the substring strictly between the opening and closing curly braces
+        '''
+        token_start = self.pos
+        body = ''
+        while self.pos < len(self.text):
+            self.parse_until(lambda c: c == '\\' or c == close)
+            if self.text[self.pos] == '\\':
+                escape_start = self.pos
+                self.pos += 1
+                control_seq = self.get_control_seq()
+                # if self.at_environment():
+                #     self.error('You can\'t start an environment from a command body')
+                body += self.text[token_start:escape_start]
+                if control_seq in commands:
+                    body += self.do_command(control_seq)
+                else:
+                    _, argstr = self.extract_args()
+                    body += '\\' + control_seq + argstr
+                    # TODO: issue a warning if the current character is a colon
+                token_start = self.pos
+            else:
+                body += self.text[token_start:self.pos]
+                self.pos += 1
+            return body
+
+    def extract_args(self, min_args = None, max_args=None):
+        '''
+        min_args: an int representing the minumum number of arguments to parse; None for no minimum
+        max_args: an int representing the maximum number of arguments to parse; None for unlimited
+        precondition: `self.pos` is at the first character after the name of the command
+        postcondition: `self.pos` is at the first character after the last argument's closing brace or bracket
+        errors: if there are fewer than `min_args` arguments following the command
+        returns: a list of `Arg`s containing the parsed arguments, and a LaTeX string containing
+            the arguments in case they are for a LaTeX command
+        '''
+        if max_args == 0:
+            return command.translate([])
+        args = []
+        argstr = ''
+        token_start = self.pos
+        nargs = 0
+        while True:
+            self.parse_while(iswhitespace)
+            if self.text[self.pos] == '{':  # TODO: make this less repetitive?
+                self.pos += 1
+                argstr += self.text[token_start:self.pos]
+                token_start = self.pos
+                arg = self.extract_arg(close='}')
+                argstr += arg + '}'
+                args.append(Arg(arg, optional=False))
+                nargs += 1
+            elif self.text[self.pos] == '[':
+                self.pos += 1
+                argstr += self.text[token_start:self.pos]
+                token_start = self.pos
+                arg = self.extract_arg(close=']')
+                argstr += arg + ']'
+                args.append(Arg(arg, optional=True))
+                nargs += 1
+            else:
+                if min_args is not None and nargs < min_args:
+                    self.error('Too few arguments provided')
+                else:
+                    break
+            if max_args is not None and nargs >= max_args:
+                break
+        return args, argstr
 
     def do_command(self, name):
         '''
@@ -249,137 +340,6 @@ class Translator:
             return environments[name].translate(body, args)
         else:
             return latex_env(name, body=body, args=argstr)
-
-    def get_control_seq(self):
-        '''
-        precondition: `self.pos` is at the first character after the escape character ('\\')
-        postcondition: `self.pos` is at the first character after the name of the command
-            (including for control symbols, commands whose names are single special characters)
-        returns: the name of the command
-        '''
-        control_start = self.pos
-        self.parse_while(str.isalpha)
-        if self.pos == control_start:
-            self.pos += 1  # control symbols are only one character long
-        # pos should be at the first non-alpha character
-        control_seq = self.text[control_start:self.pos]
-        return control_seq
-
-    def extract_args(self, min_args = None, max_args=None):
-        '''
-        min_args: an int representing the minumum number of arguments to parse; None for no minimum
-        max_args: an int representing the maximum number of arguments to parse; None for unlimited
-        precondition: `self.pos` is at the first character after the name of the command
-        postcondition: `self.pos` is at the first character after the last argument's closing brace or bracket
-        errors: if there are fewer than `min_args` arguments following the command
-        returns: a list of `Arg`s containing the parsed arguments, and a LaTeX string containing
-            the arguments in case they are for a LaTeX command
-        '''
-        if max_args == 0:
-            return command.translate([])
-        args = []
-        argstr = ''
-        token_start = self.pos
-        nargs = 0
-        while True:
-            self.parse_while(iswhitespace)
-            if self.text[self.pos] == '{':  # TODO: make this less repetitive?
-                self.pos += 1
-                argstr += self.text[token_start:self.pos]
-                token_start = self.pos
-                arg = self.extract_arg(close='}')
-                argstr += arg + '}'
-                args.append(Arg(arg, optional=False))
-                nargs += 1
-            elif self.text[self.pos] == '[':
-                self.pos += 1
-                argstr += self.text[token_start:self.pos]
-                token_start = self.pos
-                arg = self.extract_arg(close=']')
-                argstr += arg + ']'
-                args.append(Arg(arg, optional=True))
-                nargs += 1
-            else:
-                if min_args is not None and nargs < min_args:
-                    self.error('Too few arguments provided')
-                else:
-                    break
-            if max_args is not None and nargs >= max_args:
-                break
-        return args, argstr
-
-    # def extract_opt(self):
-    #     '''
-    #     precondition: `self.pos` is at the first character following the opening '['
-    #     postcondition: `self.pos` is at the first character following the closing `]`
-    #     errors: if there is an invalid character before the closing `]`
-    #     returns: the substring strictly between the opening and closing square brackets
-    #     '''
-    #     body_start = self.pos
-    #     self.parse_until(is_opt_end)
-    #     if self.text[self.pos] != ']':
-    #         self.error('Invalid character `{}` in optional parameter'.format(self.text[self.pos]))
-    #     body = self.text[body_start:self.pos]
-    #     self.pos += 1
-    #     return body
-
-    def extract_arg(self, close='}'):
-        '''
-        close: the closing brace or bracket to the argument
-        precondition: `self.pos` is at the first character following the opening '{' or '['
-        postcondition: `self.pos` is at the first character following the closing '}' or ']';
-            `extract_arg` ignores everything except for other commands inside the braces
-        returns: the substring strictly between the opening and closing curly braces
-        '''
-        token_start = self.pos
-        body = ''
-        while self.pos < len(self.text):
-            self.parse_until(lambda c: c == '\\' or c == close)
-            if self.text[self.pos] == '\\':
-                escape_start = self.pos
-                self.pos += 1
-                control_seq = self.get_control_seq()
-                # if self.at_environment():
-                #     self.error('You can\'t start an environment from a command body')
-                body += self.text[token_start:escape_start]
-                if control_seq in commands:
-                    body += self.do_command(control_seq)
-                else:
-                    _, argstr = self.extract_args()
-                    body += '\\' + control_seq + argstr
-                    # TODO: issue a warning if the current character is a colon
-                token_start = self.pos
-            else:
-                body += self.text[token_start:self.pos]
-                self.pos += 1
-            return body
-
-    # def at_environment(self):
-    #     # TODO: expand this to allow for other kinds of arguments
-    #     # TODO: add support for '\\:' for literal colons
-    #     '''
-    #     precondition: `self.pos` is at the first character following the name of a control sequence
-    #     postcondition: `self.pos` is in the same place where it started
-    #     returns: True if the control sequence is followed by a colon (after optionally some arguments),
-    #         indicating it is an environment, False otherwise
-    #     '''
-    #     old_pos = self.pos
-    #     self.parse_while(iswhitespace)
-    #     # print('checking at environment')
-    #     # print(self.text[self.pos:self.pos+10])
-    #     while self.pos < len(self.text):
-    #     if self.text[self.pos] == '[':
-    #         self.parse_until(is_opt_end)
-    #         if self.text[self.pos] != ']':
-    #             self.pos = old_pos
-    #             return False
-    #         self.pos += 1
-    #     self.parse_while(iswhitespace)
-    #     if self.text[self.pos] == ':':
-    #         self.pos = old_pos
-    #         return True
-    #     self.pos = old_pos
-    #     return False
 
     def extract_block(self, for_environment=False, for_document=False):
         # TODO: can this be broken up into smaller methods?
@@ -459,7 +419,6 @@ class Translator:
                 token_start = self.pos
         body += self.text[token_start:]
         return body
-
 
     def translate(self):
         # import pdb;pdb.set_trace()

@@ -127,3 +127,66 @@ def test_calc_indent_level_bad():
     assert 'multiples of the base' in excinfo.value.msg
 
 
+def test_parse_empty_good():
+    source = '    \n\n    some text'
+    translator = Translator(source)
+    translator.parse_empty()
+    assert translator.pos == 6
+
+
+def test_parse_empty_stay():
+    source = '    some text'
+    translator = Translator(source)
+    translator.parse_empty()
+    assert translator.pos == 0
+
+
+def test_parse_empty_none():
+    source = '    \n\n  \n   '
+    translator = Translator(source)
+    translator.parse_empty()
+    assert translator.pos == len(source)
+
+
+def test_get_control_seq():
+    source = 'commandname123'
+    translator = Translator(source)
+    assert translator.get_control_seq() == 'commandname'
+    assert source[translator.pos] == '1'
+
+
+def test_get_control_seq_end():
+    source = 'commandname'
+    translator = Translator(source)
+    assert translator.get_control_seq() == 'commandname'
+    assert translator.pos == len(source)
+
+
+def test_get_control_symbol():
+    source = '!stuff'
+    translator = Translator(source)
+    assert translator.get_control_seq() == '!'
+    assert source[translator.pos] == 's'
+
+
+def test_get_control_colon():
+    source = ':stuff'
+    translator = Translator(source)
+    assert translator.get_control_seq() == ':'
+    assert source[translator.pos] == 's'
+
+
+def test_get_control_symbol_end():
+    source = '!'
+    translator = Translator(source)
+    assert translator.get_control_seq() == '!'
+    assert translator.pos == 1
+
+
+def test_get_control_colon_end():
+    source = ':'
+    translator = Translator(source)
+    assert translator.get_control_seq() == ':'
+    assert translator.pos == 1
+
+
