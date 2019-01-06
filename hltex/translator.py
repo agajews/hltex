@@ -366,6 +366,9 @@ class Translator:
     def extract_block(self, for_environment=False, for_document=False):
         # TODO: can this be broken up into smaller methods?
         '''
+        for_environment: whether being called from the start of an environment (as opposed
+            to the first recursive call, which is outside everything)
+        for_document: whether being called from the start of the first `document` environment
         precondition: `self.pos` is at the first newline after the colon for environments,
             or the beginning of the file for the outermost call
         postcondition: `self.pos` is at the start of the line following the block, or at
@@ -425,25 +428,23 @@ class Translator:
                         if self.text[self.pos] == ':':
                             self.pos += 1
                             # print('at environment')
-                            for_document = False
+                            next_for_document = False
                             if not self.in_document and control_seq == 'document':
                                 self.in_document = True
-                                for_document = True
+                                next_for_document = True
                             # print('Doing environment `{}`'.format(control_seq))
                             if control_seq in environments:
                                 environment = environments[control_seq]
                             else:
                                 environment = control_seq
-                            if for_document:
+                            if for_document or not for_environment:
                                 outer_indent = 0
                             else:
                                 outer_indent = block_indent + 1
-                            body += self.do_environment(environment, args, argstr, outer_indent, for_document=for_document) + '\n'
+                            body += self.do_environment(environment, args, argstr, outer_indent, for_document=next_for_document) + '\n'
                             indent_level = self.calc_indent_level()
                             if indented and indent_level <= block_indent:
                                 return body
-                            # if block_indent > 0:
-                            #     body += self.indent_str * block_indent
                             token_start = self.pos
                         else:
                             body += '\\' + control_seq + argstr + self.text[whitespace_start:self.pos]

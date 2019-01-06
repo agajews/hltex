@@ -6,20 +6,6 @@ def translate(source):
     translator = Translator(source)
     return translator.translate()
 
-def test_hello():
-    source = dedent('''
-    \\documentclass{article}
-    \\document:
-    Hello?
-    ''')
-    assert translate(source) == dedent(
-    '''
-    \\documentclass{article}
-    \\begin{document}
-    Hello?
-    \\end{document}\n''')
-
-
 def test_parse_while():
     source = 'aaaaabbbb'
     translator = Translator(source)
@@ -401,6 +387,14 @@ def test_extract_block():
     assert source[translator.pos] == 'g'
 
 
+def test_extract_block_document():
+    source = '\nhello\n\ngoodbye'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    assert translator.extract_block(for_environment=True, for_document=True) == '\nhello\n\ngoodbye\n'
+    assert translator.pos == len(source)
+
+
 def test_extract_block_end():
     source = '\n    hello\n    \n'
     translator = Translator(source)
@@ -483,5 +477,56 @@ def test_do_environment_nested_nonewline():
     print(res)
     assert res == '\\begin{test}\n    hello\n    \\begin{environment}\n        nested\n    \\end{environment}\n\\end{test}'
     assert translator.pos == len(source)
+
+
+def test_hello():
+    source = dedent('''
+    \\documentclass{article}
+    \\document:
+    Hello?
+    ''')
+    assert translate(source) == dedent(
+    '''
+    \\documentclass{article}
+    \\begin{document}
+    Hello?
+    \\end{document}\n''')
+
+
+def test_hello_indented():
+    source = dedent('''
+    \\documentclass{article}
+    \\document:
+        Hello?
+    ''')
+    assert translate(source) == dedent(
+    '''
+    \\documentclass{article}
+    \\begin{document}
+        Hello?
+    \\end{document}
+    ''')
+
+
+def test_double_document():
+    source = dedent('''
+    \\documentclass{article}
+    \\document:
+    Hello?
+    \\document:
+        Goodbye
+    ''')
+    res = translate(source)
+    print(res)
+    assert res == dedent(
+    '''
+    \\documentclass{article}
+    \\begin{document}
+    Hello?
+    \\begin{document}
+        Goodbye
+    \\end{document}
+    \\end{document}
+    ''')
 
 
