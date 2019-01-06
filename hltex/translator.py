@@ -113,7 +113,8 @@ class Translator:
     def parse_while(self, pred):
         '''
         pred: a boolean-valued function (i.e. a predicate) on a character
-        postcondition: `self.pos` is at the first character *not* satisfying `pred`, after the original `self.pos` at call-time
+        postcondition: `self.pos` is at the first character *not* satisfying `pred`, after the original `self.pos` at call-time,
+            or `len(self.text)` if there is no such character
         '''
         # TODO: deal with unexpected EOF
         while self.pos < len(self.text) and pred(self.text[self.pos]):
@@ -122,7 +123,8 @@ class Translator:
     def parse_until(self, pred):
         '''
         pred: a boolean-valued function (i.e. a predicate) on a character
-        postcondition: `self.pos` is at the first character satisfying `pred`, after the original `self.pos` at call-time
+        postcondition: `self.pos` is at the first character satisfying `pred`, after the original `self.pos` at call-time,
+            or `len(self.text)` if there is no such character
         '''
         self.parse_while(lambda c: not pred(c))
 
