@@ -1,6 +1,6 @@
 from textwrap import dedent
 import pytest
-from hltex.translator import Translator, TranslationError
+from hltex.translator import Translator, TranslationError, Arg
 
 def translate(source):
     translator = Translator(source)
@@ -188,5 +188,81 @@ def test_get_control_colon_end():
     translator = Translator(source)
     assert translator.get_control_seq() == ':'
     assert translator.pos == 1
+
+
+def test_extract_arg():
+    source = 'my \nargument}some more text'
+    translator = Translator(source)
+    assert translator.extract_arg() == 'my \nargument'
+    assert source[translator.pos] == 's'
+
+
+def test_extract_arg_end():
+    source = 'my \nargument}'
+    translator = Translator(source)
+    assert translator.extract_arg() == 'my \nargument'
+    assert translator.pos == len(source)
+
+
+def test_extract_arg_opt():
+    source = 'my \nargument]some more text'
+    translator = Translator(source)
+    assert translator.extract_arg(']') == 'my \nargument'
+    assert source[translator.pos] == 's'
+
+
+def test_extract_arg_opt_end():
+    source = 'my \nargument]'
+    translator = Translator(source)
+    assert translator.extract_arg(']') == 'my \nargument'
+    assert translator.pos == len(source)
+
+
+# TODO: test extract_arg with nested commands
+
+
+def test_extract_arg_unmatched():
+    source = 'my argument'
+    translator = Translator(source)
+    with pytest.raises(TranslationError) as excinfo:
+        translator.extract_arg(required=True)
+    assert 'Missing closing' in excinfo.value.msg
+
+
+def test_extract_arg_opt_unmatched():
+    source = 'my argument'
+    translator = Translator(source)
+    assert translator.extract_arg() == None
+    assert translator.pos == len(source)
+
+
+def test_extract_args():
+    source = '{arg1}{arg2}some text'
+    translator = Translator(source)
+    args, argstr = translator.extract_args()
+    assert args == [Arg('arg1'), Arg('arg2')]
+    assert argstr == '{arg1}{arg2}'
+    assert source[translator.pos] == 's'
+
+
+def test_extract_args_opt():
+    source = '{arg1}[arg2]{arg1}some text'
+    translator = Translator(source)
+    args, argstr = translator.extract_args()
+    assert args == [Arg('arg1'), Arg('arg2', optional=True), Arg('arg1')]
+    assert argstr == '{arg1}[arg2]{arg1}'
+    assert source[translator.pos] == 's'
+
+
+def test_extract_args_whitespace():
+    # NOTE: this is different from standard LaTeX, where newlines don't matter
+    # we can still parse standard latex like this, but our commands have to have
+    # their arguments on the same line
+    source = ' {arg1}  [arg2]\n{arg1}some text'
+    translator = Translator(source)
+    args, argstr = translator.extract_args()
+    assert args == [Arg('arg1'), Arg('arg2', optional=True)]
+    assert argstr == ' {arg1}  [arg2]'
+    assert source[translator.pos] == '\n'
 
 

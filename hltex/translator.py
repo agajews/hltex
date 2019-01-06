@@ -3,6 +3,9 @@ class Arg:
         self.contents = contents
         self.optional = optional
 
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+
 
 def resolve_args(params, args):
     '''
@@ -206,38 +209,46 @@ class Translator:
         control_seq = self.text[control_start:self.pos]
         return control_seq
 
-    def extract_arg(self, close='}'):
+    def extract_arg(self, close='}', required=False):
         '''
         close: the closing brace or bracket to the argument
+        required: whether to error if no closing brace or bracket is found
         precondition: `self.pos` is at the first character following the opening '{' or '['
-        postcondition: `self.pos` is at the first character following the closing '}' or ']';
-            `extract_arg` ignores everything except for other commands inside the braces
+        postcondition: `self.pos` is at the first character following the closing '}' or ']',
+            or at `len(self.text)` if there is no such character; `extract_arg` ignores
+            everything except for other commands inside the braces
+        errors: if `required` and the file ends before there is a `close` character
         returns: the substring strictly between the opening and closing curly braces
         '''
         token_start = self.pos
         body = ''
         while self.pos < len(self.text):
             self.parse_until(lambda c: c == '\\' or c == close)
-            if self.text[self.pos] == '\\':
-                escape_start = self.pos
-                self.pos += 1
-                control_seq = self.get_control_seq()
-                # if self.at_environment():
-                #     self.error('You can\'t start an environment from a command body')
-                body += self.text[token_start:escape_start]
-                if control_seq in commands:
-                    body += self.do_command(control_seq)
-                else:
-                    _, argstr = self.extract_args()
-                    body += '\\' + control_seq + argstr
-                    # TODO: issue a warning if the current character is a colon
-                token_start = self.pos
-            else:
-                body += self.text[token_start:self.pos]
-                self.pos += 1
-            return body
+            if self.pos < len(self.text):
+                if self.text[self.pos] == '\\':
+                    escape_start = self.pos
+                    self.pos += 1
+                    control_seq = self.get_control_seq()
+                    # if self.at_environment():
+                    #     self.error('You can\'t start an environment from a command body')
+                    body += self.text[token_start:escape_start]
+                    if control_seq in commands:
+                        body += self.do_command(control_seq)
+                    else:
+                        _, argstr = self.extract_args()
+                        body += '\\' + control_seq + argstr
+                        # TODO: issue a warning if the current character is a colon
+                    token_start = self.pos
+                elif self.text[self.pos] == close:
+                    body += self.text[token_start:self.pos]
+                    self.pos += 1
+                    return body
+        if required:
+            self.error('Missing closing `{}`'.format(close))
+        else:
+            return None
 
-    def extract_args(self, min_args = None, max_args=None):
+    def extract_args(self, min_args=None, max_args=None):
         '''
         min_args: an int representing the minumum number of arguments to parse; None for no minimum
         max_args: an int representing the maximum number of arguments to parse; None for unlimited
@@ -259,18 +270,23 @@ class Translator:
                 self.pos += 1
                 argstr += self.text[token_start:self.pos]
                 token_start = self.pos
-                arg = self.extract_arg(close='}')
+                arg = self.extract_arg(close='}', required=True)
                 argstr += arg + '}'
+                token_start = self.pos
                 args.append(Arg(arg, optional=False))
                 nargs += 1
             elif self.text[self.pos] == '[':
-                self.pos += 1
+                arg_start = self.pos
                 argstr += self.text[token_start:self.pos]
-                token_start = self.pos
+                self.pos += 1
                 arg = self.extract_arg(close=']')
-                argstr += arg + ']'
-                args.append(Arg(arg, optional=True))
-                nargs += 1
+                if arg is not None:
+                    token_start = self.pos
+                    argstr += '[' + arg + ']'
+                    args.append(Arg(arg, optional=True))
+                    nargs += 1
+                else:
+                    self.pos = arg_start
             else:
                 if min_args is not None and nargs < min_args:
                     self.error('Too few arguments provided')
