@@ -266,3 +266,57 @@ def test_extract_args_whitespace():
     assert source[translator.pos] == '\n'
 
 
+def test_extract_args_opt_unmatched():
+    source = '{arg1[}[arg2{arg1}some text'
+    translator = Translator(source)
+    args, argstr = translator.extract_args()
+    assert args == [Arg('arg1[')]
+    assert argstr == '{arg1[}'
+    assert source[translator.pos] == '['
+    assert translator.pos == 7
+
+
+def test_extract_args_only_opt_unmatched():
+    source = '[arg2{arg1}some text'
+    translator = Translator(source)
+    args, argstr = translator.extract_args()
+    assert args == []
+    assert argstr == ''
+    assert source[translator.pos] == '['
+
+
+def test_extract_args_min_args():
+    source = '{arg1}[arg2]some text'
+    translator = Translator(source)
+    args, argstr = translator.extract_args(min_args=2)
+    assert args == [Arg('arg1'), Arg('arg2', optional=True)]
+    assert argstr == '{arg1}[arg2]'
+    assert source[translator.pos] == 's'
+
+
+def test_extract_args_min_args_missing():
+    source = '{arg1}[arg2]some text'
+    translator = Translator(source)
+    with pytest.raises(TranslationError) as excinfo:
+        translator.extract_args(min_args=3)
+    assert 'Too few arguments' in excinfo.value.msg
+
+
+def test_extract_args_max_args():
+    source = '{arg1}  [arg2] {arg1}some text'
+    translator = Translator(source)
+    args, argstr = translator.extract_args(max_args=4)
+    assert args == [Arg('arg1'), Arg('arg2', optional=True), Arg('arg1')]
+    assert argstr == '{arg1}  [arg2] {arg1}'
+    assert source[translator.pos] == 's'
+
+
+def test_extract_args_max_args_less():
+    source = '{arg1}  [arg2] {arg1}some text'
+    translator = Translator(source)
+    args, argstr = translator.extract_args(max_args=2)
+    assert args == [Arg('arg1'), Arg('arg2', optional=True)]
+    assert argstr == '{arg1}  [arg2]'
+    assert source[translator.pos] == ' '
+
+

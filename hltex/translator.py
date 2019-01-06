@@ -287,6 +287,7 @@ class Translator:
                     nargs += 1
                 else:
                     self.pos = arg_start
+                    break
             else:
                 if min_args is not None and nargs < min_args:
                     self.error('Too few arguments provided')
