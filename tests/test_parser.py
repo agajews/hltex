@@ -432,7 +432,6 @@ def test_do_environment_args():
     translator = Translator(source)
     translator.indent_str = '    '
     res = translator.do_environment(Environment('test', lambda b, a: '\\begin{test}\\textbf{%s}%s\\end{test}' % (a, b), '!'), [Arg('arg1')], '', 0)
-    print(res)
     assert res == '\\begin{test}\\textbf{arg1}\n    hello\n    \n\\end{test}'
     assert source[translator.pos] == 'g'
 
@@ -462,6 +461,14 @@ def test_extract_block_nonenvironment_bad():
     with pytest.raises(TranslationError) as excinfo:
         block = translator.extract_block(for_environment=False)
     assert 'document as a whole must not be indented' in excinfo.value.msg
+
+
+def test_extract_block_nonenvironment_args():
+    source = '\\environment[arg1] { arg2}:\n    contents\n    contents2\ngoodbye'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    block = translator.extract_block(for_environment=False)
+    assert block == '\\begin{environment}[arg1] { arg2}\n    contents\n    contents2\n\\end{environment}\ngoodbye\n'
 
 
 def test_extract_block_environment_indented():
