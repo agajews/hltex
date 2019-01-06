@@ -79,7 +79,6 @@ def test_equation():
             f(x) = x^2
     ''')
     res = translate(source)
-    print(res)
     assert res == dedent(
     '''
     \\documentclass{article}
@@ -88,6 +87,74 @@ def test_equation():
         \\begin{equation}
             f(x) = x^2
         \\end{equation}
+    \\end{document}
+    ''')
+
+
+def test_multiple_equations():
+    source = dedent('''
+    \\documentclass{article}
+    \\document:
+    Here is an equation:
+    \\equation:
+        f(x) = x^2
+    Here is another equation:
+    \\equation:
+        f(x) = x^3
+    Here are some concluding words.
+    ''')
+    # import pdb; pdb.set_trace()
+    res = translate(source)
+    assert res == dedent(
+    '''
+    \\documentclass{article}
+    \\begin{document}
+    Here is an equation:
+    \\begin{equation}
+        f(x) = x^2
+    \\end{equation}
+    Here is another equation:
+    \\begin{equation}
+        f(x) = x^3
+    \\end{equation}
+    Here are some concluding words.
+    \\end{document}
+    ''')
+
+
+def test_multiple_nested_environments():
+    source = dedent('''
+    \\documentclass{article}
+    \\document:
+    Here is an equation:
+    \\equation:
+        \\split:
+            f(x) = x^2
+    Here is another equation:
+    \\equation:
+        \\split:
+            f(x) = x^3
+    Here are some concluding words.
+    ''')
+    # import pdb; pdb.set_trace()
+    res = translate(source)
+    assert res == dedent(
+    '''
+    \\documentclass{article}
+    \\begin{document}
+    Here is an equation:
+    \\begin{equation}
+        \\begin{split}
+            f(x) = x^2
+        \\end{split}
+    \\end{equation}
+    Here is another equation:
+    \\begin{equation}
+        \\begin{split}
+            f(x) = x^3
+        \\end{split}
+    \\end{equation}
+    Here are some concluding words.
     \\end{document}
     ''')
 

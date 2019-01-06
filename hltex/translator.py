@@ -423,6 +423,7 @@ class Translator:
                 elif indented:
                     if indent_level <= prev_block_indent:
                         body += self.text[token_start:line_start]
+                        self.indent_level = indent_level
                         return body
 
             elif self.text[self.pos] == '\\':
@@ -457,6 +458,7 @@ class Translator:
                         body += self.do_environment(environment, args, argstr, outer_indent, for_document=next_for_document) + '\n'
                         indent_level = self.calc_indent_level()
                         if indented and indent_level <= prev_block_indent:
+                            self.indent_level = indent_level
                             return body
                         token_start = self.pos
                     else:
