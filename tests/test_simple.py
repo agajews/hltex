@@ -320,6 +320,14 @@ def test_extract_args_min_args_missing():
     assert 'Too few arguments' in excinfo.value.msg
 
 
+def test_extract_args_unmatched():
+    source = '{arg1'
+    translator = Translator(source)
+    with pytest.raises(TranslationError) as excinfo:
+        translator.extract_args()
+    assert 'Missing closing' in excinfo.value.msg
+
+
 def test_extract_args_max_args():
     source = '{arg1}  [arg2] {arg1}some text'
     translator = Translator(source)
@@ -381,5 +389,39 @@ def test_do_command_multiple():
     assert res == '\\textbf{arg1, arg2}'
     assert source[translator.pos] == '{'
     assert translator.pos == 12
+
+
+def test_extract_block():
+    source = '\n    hello\n    \ngoodbye'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    assert translator.extract_block(for_environment=True) == '\n    hello\n    \n'
+    assert source[translator.pos] == 'g'
+
+
+def test_extract_block_end():
+    source = '\n    hello\n    \n'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    assert translator.extract_block(for_environment=True) == '\n    hello\n    \n'
+    assert translator.pos == len(source)
+
+
+def test_extract_block_nested():
+    source = '\n        hello\n    \n    goodbye'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    translator.indent_level = 1
+    assert translator.extract_block(for_environment=True) == '\n        hello\n    \n'
+    assert source[translator.pos] == 'g'
+
+
+def test_extract_block_nested_end():
+    source = '\n        hello\n    \n    '
+    translator = Translator(source)
+    translator.indent_str = '    '
+    translator.indent_level = 1
+    assert translator.extract_block(for_environment=True) == '\n        hello\n    \n    '
+    assert translator.pos == len(source)
 
 

@@ -400,7 +400,7 @@ class Translator:
                     self.error('Invalid indentation not following the opening of an environment')
                 elif indented:
                     if indent_level <= block_indent:
-                        body += self.text[token_start:line_start + 1]
+                        body += self.text[token_start:line_start]
                         # pos is at the first non-whitespace of the line
                         return body
                     else:
