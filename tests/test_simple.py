@@ -21,6 +21,11 @@ def test_hello():
     \\end{document}\n''')
 
 
+def test_no_starting_newline():
+    source = '\\documentclass{article}\n\\document:\nHello?'
+    assert translate(source) == '\\documentclass{article}\n\\begin{document}\nHello?\n\\end{document}\n'
+
+
 def test_hello_indented():
     source = dedent('''
     \\documentclass{article}
