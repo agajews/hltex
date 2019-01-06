@@ -119,6 +119,12 @@ class Translator:
 
         self.in_document = False
 
+    def finished(self):
+        return self.pos == len(self.text)
+
+    def not_finished(self):
+        return not self.finished()
+
     def parse_while(self, pred):
         '''
         pred: a boolean-valued function (i.e. a predicate) on a character
@@ -126,7 +132,7 @@ class Translator:
             or `len(self.text)` if there is no such character
         '''
         # TODO: deal with unexpected EOF
-        while self.pos < len(self.text) and pred(self.text[self.pos]):
+        while self.not_finished() and pred(self.text[self.pos]):
             self.pos += 1
 
     def parse_until(self, pred):
@@ -159,7 +165,8 @@ class Translator:
         return len(indent) // len(self.indent_str)
 
     def calc_indent_level(self):
-        # TODO: make sure self.pos actually is at the start of a line
+        # TODO: make all functions that don't move self.pos clear from its name (e.g. peek_..., validate_...)
+        #assert self.pos == 0 or isnewline(self.text[self.pos - 1]), "pos: {}, text: {}".format(self.pos, self.text[self.pos-1:self.pos+10])
         '''
         precondition: `self.pos` is at the start of a line
         postcondition: `self.pos` is where it started
@@ -189,7 +196,7 @@ class Translator:
             next non-whitespace line
         '''
         # print('parsing empty')
-        while self.pos < len(self.text):
+        while self.not_finished():
             # print(self.pos)
             line_end = self.text.find('\n', self.pos)
             if line_end == -1:
@@ -228,9 +235,9 @@ class Translator:
         '''
         token_start = self.pos
         body = ''
-        while self.pos < len(self.text):
+        while self.not_finished():
             self.parse_until(lambda c: c == '\\' or c == close or c == '{')
-            if self.pos < len(self.text):
+            if self.not_finished():
                 if self.text[self.pos] == '{':
                     body += self.text[token_start:self.pos]
                     self.pos += 1
@@ -397,61 +404,64 @@ class Translator:
         elif not for_environment and not indent_level == 0:
             self.error('The document as a whole must not be indented')
         indented = indent_level == self.indent_level + 1
-        block_indent = self.indent_level
+        #assert indented or not for_environment
+        prev_block_indent = self.indent_level
         self.indent_level = indent_level
 
-        while self.pos < len(self.text):
+        while self.not_finished():
             self.parse_until(lambda c: c == '\\' or c == '\n')
-            if self.pos < len(self.text):
-                if self.text[self.pos] == '\n':
-                    self.parse_empty()
-                    line_start = self.pos
-                    indent_level = self.calc_indent_level()
-                    # print(indent_level)
-                    if indent_level > self.indent_level:  # TODO: remove this
-                        self.error('Invalid indentation not following the opening of an environment')
-                    elif indented:
-                        if indent_level <= block_indent:
-                            body += self.text[token_start:line_start]
-                            return body
+            if self.finished():
+                break
 
-                elif self.text[self.pos] == '\\':
-                    # print('Found escape at pos {}'.format(self.pos))
-                    escape_start = self.pos
-                    self.pos += 1
-                    control_seq = self.get_control_seq()
-                    # print(control_seq)
-                    body += self.text[token_start:escape_start]
-                    if control_seq in commands:
-                        body += self.do_command(commands[control_seq])
-                    else:
-                        args, argstr = self.extract_args()
-                        whitespace_start = self.pos
-                        self.parse_while(iswhitespace)
-                        if self.text[self.pos] == ':':
-                            self.pos += 1
-                            # print('at environment')
-                            next_for_document = False
-                            if not self.in_document and control_seq == 'document':
-                                self.in_document = True
-                                next_for_document = True
-                            # print('Doing environment `{}`'.format(control_seq))
-                            if control_seq in environments:
-                                environment = environments[control_seq]
-                            else:
-                                environment = control_seq
-                            if indented:
-                                outer_indent = block_indent + 1
-                            else:
-                                outer_indent = 0
-                            body += self.do_environment(environment, args, argstr, outer_indent, for_document=next_for_document) + '\n'
-                            indent_level = self.calc_indent_level()
-                            if indented and indent_level <= block_indent:
-                                return body
-                            token_start = self.pos
+            if self.text[self.pos] == '\n':
+                self.parse_empty()
+                line_start = self.pos
+                indent_level = self.calc_indent_level()
+                # print(indent_level)
+                if indent_level > self.indent_level:  # TODO: remove this
+                    self.error('Invalid indentation not following the opening of an environment')
+                elif indented:
+                    if indent_level <= prev_block_indent:
+                        body += self.text[token_start:line_start]
+                        return body
+
+            elif self.text[self.pos] == '\\':
+                # print('Found escape at pos {}'.format(self.pos))
+                escape_start = self.pos
+                self.pos += 1
+                control_seq = self.get_control_seq()
+                # print(control_seq)
+                body += self.text[token_start:escape_start]
+                if control_seq in commands:
+                    body += self.do_command(commands[control_seq])
+                else:
+                    args, argstr = self.extract_args()
+                    whitespace_start = self.pos
+                    self.parse_while(iswhitespace)
+                    if self.text[self.pos] == ':':
+                        self.pos += 1
+                        # print('at environment')
+                        next_for_document = False
+                        if not self.in_document and control_seq == 'document':
+                            self.in_document = True
+                            next_for_document = True
+                        # print('Doing environment `{}`'.format(control_seq))
+                        if control_seq in environments:
+                            environment = environments[control_seq]
                         else:
-                            body += '\\' + control_seq + argstr + self.text[whitespace_start:self.pos]
-                    token_start = self.pos
+                            environment = control_seq
+                        if indented:
+                            outer_indent = prev_block_indent + 1
+                        else:
+                            outer_indent = 0
+                        body += self.do_environment(environment, args, argstr, outer_indent, for_document=next_for_document) + '\n'
+                        indent_level = self.calc_indent_level()
+                        if indented and indent_level <= prev_block_indent:
+                            return body
+                        token_start = self.pos
+                    else:
+                        body += '\\' + control_seq + argstr + self.text[whitespace_start:self.pos]
+                token_start = self.pos
         body += self.text[token_start:]
         if body[-1] != '\n':
             body += '\n'
