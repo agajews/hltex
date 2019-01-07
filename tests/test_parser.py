@@ -379,7 +379,7 @@ def test_extract_block():
     source = '\n    hello\n    \ngoodbye'
     translator = Translator(source)
     translator.indent_str = '    '
-    assert translator.extract_block(for_environment=True) == '\n    hello\n    \n'
+    assert translator.extract_block() == '\n    hello\n    \n'
     assert source[translator.pos] == 'g'
 
 
@@ -387,7 +387,8 @@ def test_extract_block_document():
     source = '\nhello\n\ngoodbye'
     translator = Translator(source)
     translator.indent_str = '    '
-    assert translator.extract_block(for_environment=True, for_document=True) == '\nhello\n\ngoodbye\n'
+    translator.indent_level = -1
+    assert translator.extract_block() == '\nhello\n\ngoodbye\n'
     assert translator.pos == len(source)
 
 
@@ -395,7 +396,7 @@ def test_extract_block_end():
     source = '\n    hello\n    \n'
     translator = Translator(source)
     translator.indent_str = '    '
-    assert translator.extract_block(for_environment=True) == '\n    hello\n    \n'
+    assert translator.extract_block() == '\n    hello\n    \n'
     assert translator.pos == len(source)
 
 
@@ -404,7 +405,7 @@ def test_extract_block_nested():
     translator = Translator(source)
     translator.indent_str = '    '
     translator.indent_level = 1
-    assert translator.extract_block(for_environment=True) == '\n        hello\n    \n'
+    assert translator.extract_block() == '\n        hello\n    \n'
     assert source[translator.pos] == ' '
     assert translator.pos == 20
 
@@ -414,7 +415,7 @@ def test_extract_block_nested_end():
     translator = Translator(source)
     translator.indent_str = '    '
     translator.indent_level = 1
-    assert translator.extract_block(for_environment=True) == '\n        hello\n    \n    '
+    assert translator.extract_block() == '\n        hello\n    \n    '
     assert translator.pos == len(source)
 
 
@@ -449,7 +450,7 @@ def test_extract_block_environment():
     source = '\n    hello\n    \\environment:\n        nested\ngoodbye'
     translator = Translator(source)
     translator.indent_str = '    '
-    block = translator.extract_block(for_environment=True)
+    block = translator.extract_block()
     assert block == '\n    hello\n    \\begin{environment}\n        nested\n    \\end{environment}\n'
     assert source[translator.pos] == 'g'
 
@@ -458,8 +459,9 @@ def test_extract_block_nonenvironment_bad():
     source = '\n    hello\n    \n    goodbye'
     translator = Translator(source)
     translator.indent_str = '    '
+    translator.indent_level = -1
     with pytest.raises(TranslationError) as excinfo:
-        block = translator.extract_block(for_environment=False)
+        block = translator.extract_block()
     assert 'document as a whole must not be indented' in excinfo.value.msg
 
 
@@ -467,7 +469,8 @@ def test_extract_block_nonenvironment_args():
     source = '\\environment[arg1] { arg2}:\n    contents\n    contents2\ngoodbye'
     translator = Translator(source)
     translator.indent_str = '    '
-    block = translator.extract_block(for_environment=False)
+    translator.indent_level = -1
+    block = translator.extract_block()
     assert block == '\\begin{environment}[arg1] { arg2}\n    contents\n    contents2\n\\end{environment}\ngoodbye\n'
 
 
@@ -476,7 +479,7 @@ def test_extract_block_environment_indented():
     translator = Translator(source)
     translator.indent_str = '    '
     translator.indent_level = 1
-    block = translator.extract_block(for_environment=True)
+    block = translator.extract_block()
     assert block == '\n        hello\n        \\begin{environment}\n            nested\n        \\end{environment}\n'
     assert source[translator.pos] == ' '
     assert translator.pos == 56

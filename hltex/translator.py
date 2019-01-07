@@ -117,8 +117,6 @@ class Translator:
         self.pos = 0
         self.text = text
 
-        self.in_document = False
-
     def finished(self):
         return self.pos == len(self.text)
 
@@ -190,7 +188,10 @@ class Translator:
             self.indent_str = indent
         indent_level = self.level_of_indent(indent)
         if indent_level > self.indent_level and not indent_level == self.indent_level + 1:
-            self.error('You can only indent one level at a time')
+            if self.indent_level == -1:
+                self.error('The document as a whole must not be indented')
+            else:
+                self.error('You can only indent one level at a time')
         level = self.level_of_indent(indent)
         self.pos = indent_start
         return level
@@ -338,7 +339,7 @@ class Translator:
         args, argstr = self.extract_args(max_args=len(command.params))
         return command.translate(args)
 
-    def do_environment(self, environment, args, argstr, outer_indent, for_document=False):
+    def do_environment(self, environment, args, argstr, outer_indent):
         # TODO: pass the translate_fn the indentation level
         '''
         environment: either an `Environment` object to do the translation, or a string,
@@ -346,7 +347,7 @@ class Translator:
         args: a list of `Arg`s to pass to the environment if it's ours
         argstr: a LaTeX string containing the arguments to pass if it's a LaTeX environment
         outer_indent: indentation level of the enclosing environment, or 0 if unenclosed
-        for_document: bool, True if parsing the `document` environment (for the first time), False otherwise
+
         precondition: `self.pos` is at the first character after the colon
             (e.g. a newline, but also possibly some other whitespace or a non-alph character for one-liners)
         postcondition:
@@ -365,7 +366,7 @@ class Translator:
         '''
         self.parse_while(iswhitespace)
         if self.text[self.pos] == '\n':
-            body = self.extract_block(for_environment=True, for_document=for_document)
+            body = self.extract_block()
             if outer_indent > 0:
                 body += self.indent_str * outer_indent
         else:
@@ -423,7 +424,8 @@ class Translator:
         return body
 
     def extract_document(self):
-        body = self.extract_block(for_environment=False, for_document=True)
+        self.indent_level = -1  # to simulate document block being indented as if it's a command
+        body = self.extract_block()
 
         return '\n' + latex_env("document", '', body, '', '') + '\n'
 
@@ -431,12 +433,9 @@ class Translator:
 
 
 
-    def extract_block(self, for_environment=False, for_document=False):
+    def extract_block(self):
         # TODO: can this be broken up into smaller methods?
         '''
-        for_environment: whether being called from the start of an environment (as opposed
-            to the first recursive call, which is outside everything)
-        for_document: whether being called from the start of the first `document` environment
         precondition: `self.pos` is at the first newline after the colon for environments,
             or the beginning of the file for the outermost call
         postcondition: `self.pos` is at the start of the line following the block, or at
@@ -457,12 +456,9 @@ class Translator:
         # print('finished parsing empty')
         indent_level = self.calc_indent_level()
         # print(indent_level)
-        if for_environment and not for_document and not indent_level == self.indent_level + 1:
+        if indent_level != self.indent_level + 1:
             self.error('You must either put the body of an environment all on one line, or on an indented block on the following line')
-        elif not for_environment and not indent_level == 0:
-            self.error('The document as a whole must not be indented')
-        indented = indent_level == self.indent_level + 1
-        assert indented or not for_environment or for_document
+
         prev_block_indent = self.indent_level
         self.indent_level = indent_level
 
@@ -478,11 +474,12 @@ class Translator:
                 # print(indent_level)
                 if indent_level > self.indent_level:  # TODO: remove this
                     self.error('Invalid indentation not following the opening of an environment')
-                elif indented:
-                    if indent_level <= prev_block_indent:
-                        body += self.text[token_start:line_start]
-                        self.indent_level = indent_level
-                        return body
+                
+
+                if indent_level <= prev_block_indent:  # unindent, end block
+                    body += self.text[token_start:line_start]
+                    self.indent_level = indent_level
+                    return body
 
             elif self.text[self.pos] == '\\':
                 # print('Found escape at pos {}'.format(self.pos))
@@ -500,22 +497,18 @@ class Translator:
                     if self.text[self.pos] == ':':
                         self.pos += 1
                         # print('at environment')
-                        next_for_document = False
-                        if not self.in_document and control_seq == 'document':
-                            self.in_document = True
-                            next_for_document = True
                         # print('Doing environment `{}`'.format(control_seq))
                         if control_seq in environments:
                             environment = environments[control_seq]
                         else:
                             environment = control_seq
-                        if indented:
-                            outer_indent = prev_block_indent + 1
-                        else:
-                            outer_indent = 0
-                        body += self.do_environment(environment, args, argstr, outer_indent, for_document=next_for_document) + '\n'
+                        
+
+                        outer_indent = prev_block_indent + 1
+                        
+                        body += self.do_environment(environment, args, argstr, outer_indent) + '\n'
                         indent_level = self.calc_indent_level()
-                        if indented and indent_level <= prev_block_indent:
+                        if indent_level <= prev_block_indent:
                             self.indent_level = indent_level
                             return body
                         token_start = self.pos
