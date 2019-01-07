@@ -26,7 +26,7 @@ HLTeX supports two kinds of macros: *commands* and *environments*.
 
 Commands are just as they are in plain LaTeX, and they look like this:
 ```
-This text \\emph{is emphasized} using the \\\\emph command.
+This text \emph{is emphasized} using the \\emph command.
 ```
 They are preceeded by a backslash, the *escape character*, followed by either any number of letters in the alphabet
 (capital or lowercase), or by a single non-alphabetical character, as in the backslash literal in the example above.
@@ -38,13 +38,13 @@ The main syntactic difference between HLTeX and LaTeX is that HLTeX uses indenta
 \eq:
     f(x) = x^2 + 3
 ```
-Notice that there isn't a trailing `\\end{eq}`!
+Notice that there isn't a trailing `\end{eq}`!
 This makes typing out your documents a breeze.
 
 Commands can take both *required* and *optional* arguments.
 Required arguments are enclosed in curly braces `{}`, while optional arguments are enclosed in square brackets `[]`.
 For compatibility reasons, only curly braces are required to match;
-this means `\\command{[}` is valid HLTeX, because it is valid LaTeX.
+this means `\command{[}` is valid HLTeX, because it is valid LaTeX.
 
 As in LaTeX, files are broken into two parts: a *preamble*, and a *document*.
 Whereas LaTeX encloses the document in an enormous pair of begin/end commands, in the interest of conciseness,
