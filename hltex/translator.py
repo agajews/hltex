@@ -22,7 +22,7 @@ def resolve_args(name, params, args):
     all_args = []
     arg_num = 0
     if len(args) > len(params):
-        raise Exception('When would this happen?')  # TODO: be clearer about internal errors
+        raise Exception('Internal error: too many arguments')  # TODO: be clearer about internal errors
     for param in params:
         if param == '!':
             if arg_num < len(args) and not args[arg_num].optional:
@@ -339,6 +339,7 @@ class Translator:
         return command.translate(args)
 
     def do_environment(self, environment, args, argstr, outer_indent, for_document=False):
+        # TODO: pass the translate_fn the indentation level
         '''
         environment: either an `Environment` object to do the translation, or a string,
             the name of a LaTeX environment for which to insert a corresponding begin/end

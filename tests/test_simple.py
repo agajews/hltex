@@ -13,14 +13,18 @@ def test_hello():
     ===
     Hello?
     ''')
-    res = translate(source)
-    print(res)
-    assert res == dedent(
+    assert translate(source) == dedent(
     '''
     \\documentclass{article}
     \\begin{document}
     Hello?
     \\end{document}\n''')
+
+
+def test_no_starting_newline():
+    source = '\\documentclass{article}\n===\nHello?'
+    assert translate(source) == '\\documentclass{article}\n\\begin{document}\nHello?\n\\end{document}\n'
+
 
 
 # def test_double_document_mark():
