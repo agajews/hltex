@@ -4,7 +4,7 @@ while also adding support for additional features like inline Matplotlib figure 
 and SymPy integration
 
 ### Example
-```
+```TeX
 \documentclass{article}
 \title{My First Document}
 \author{Your Truly}
