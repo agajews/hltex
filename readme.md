@@ -26,10 +26,15 @@ HLTeX supports two kinds of macros: *commands* and *environments*.
 
 Commands are just as they are in plain LaTeX, and they look like this:
 ```
-This text \emph{is emphasized} using the \\emph command.
+This text \emph{is emphasized} using the `emph' command.
 ```
 They are preceeded by a backslash, the *escape character*, followed by either any number of letters in the alphabet
-(capital or lowercase), or by a single non-alphabetical character, as in the backslash literal in the example above.
+(capital or lowercase), or by a single non-alphabetical character, like this:
+```
+Once upon a time, in a distant galaxy called \"O\"o\c c, there lived a computer named R.~J. Drofnats.
+```
+The `\"` *control symbol* puts an umlaut over the following character, while the `\c` control symbol
+puts a "cedilla" under the next character.
 
 Environments are slightly different in HLTeX than in LaTeX.
 Whereas in LaTeX they are enclosed by begin/end commands, in HLTeX environments use indentation-based blocks, like this:
