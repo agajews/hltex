@@ -67,3 +67,7 @@ By default, this will put the resulting LaTeX code into a file called `myfile.te
 pdflatex myfile.tex
 ```
 to generate a PDF.
+Optionally, you can specify your own output file, like this:
+```
+hltex myfile.hltex --out myotherfile.tex
+```
