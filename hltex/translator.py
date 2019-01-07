@@ -213,6 +213,16 @@ class Translator:
                 break
             self.pos = line_end + 1
 
+    def parse_comments(self):
+        '''
+        precondition: `self.pos` is at '%', start of a comment
+        postcondition: `self.pos` is at the start of the next non-whitespace line (i.e.
+            after the preceeding newline), or at `len(self.text)` if there isn't a
+            next non-whitespace line
+        '''
+        self.parse_until(isnewline)
+        self.parse_empty()
+
     def get_control_seq(self):
         '''
         precondition: `self.pos` is at the first character after the escape character ('\\')
@@ -236,14 +246,15 @@ class Translator:
         precondition: `self.pos` is at the first character following the opening '{' or '['
         postcondition: `self.pos` is at the first character following the closing '}' or ']',
             or at `len(self.text)` if there is no such character; `extract_arg` ignores
-            everything except for other commands inside the braces
+            everything except for other commands inside the braces;
+            we also skip over comments, ignoring everything from '%' up to the end of line
         errors: if `required` and the file ends before there is a `close` character
         returns: the substring strictly between the opening and closing curly braces
         '''
         token_start = self.pos
         body = ''
         while self.not_finished():
-            self.parse_until(lambda c: c == '\\' or c == close or c == '{')
+            self.parse_until(lambda c: c == '\\' or c == close or c == '{' or c == '%')
             if self.not_finished():
                 if self.text[self.pos] == '{':
                     body += self.text[token_start:self.pos]
@@ -268,6 +279,11 @@ class Translator:
                     body += self.text[token_start:self.pos]
                     self.pos += 1
                     return body
+                elif self.text[self.pos] == '%':
+                    body += self.text[token_start:self.pos]
+                    self.parse_comments()
+                    token_start = self.pos
+
         if required:
             self.error('Missing closing `{}`'.format(close))
         else:
@@ -280,34 +296,26 @@ class Translator:
         precondition: `self.pos` is at the first character after the name of the command
         postcondition: `self.pos` is at the first character after the last argument's closing brace or bracket
         errors: if there are fewer than `min_args` arguments following the command
-        returns: a list of `Arg`s containing the parsed arguments, and a LaTeX string containing
-            the arguments in case they are for a LaTeX command
+        returns: (args, argstring) -- a list of `Arg`s containing the parsed arguments, and the original LaTeX string.
+            Comments will be included in argstring but not in args
         '''
         if max_args == 0:
             return command.translate([])
         args = []
-        argstr = ''
-        token_start = self.pos
+        parse_start = self.pos
         nargs = 0
         while True:
             self.parse_while(iswhitespace)
             if self.text[self.pos] == '{':  # TODO: make this less repetitive?
                 self.pos += 1
-                argstr += self.text[token_start:self.pos]
-                token_start = self.pos
                 arg = self.extract_arg(close='}', required=True)
-                argstr += arg + '}'
-                token_start = self.pos
                 args.append(Arg(arg, optional=False))
                 nargs += 1
             elif self.text[self.pos] == '[':
                 arg_start = self.pos
-                argstr += self.text[token_start:self.pos]
                 self.pos += 1
                 arg = self.extract_arg(close=']')
                 if arg is not None:
-                    token_start = self.pos
-                    argstr += '[' + arg + ']'
                     args.append(Arg(arg, optional=True))
                     nargs += 1
                 else:
@@ -320,6 +328,8 @@ class Translator:
                     break
             if max_args is not None and nargs >= max_args:
                 break
+
+        argstr = self.text[parse_start:self.pos]
         return args, argstr
 
     def do_command(self, command):
@@ -388,6 +398,7 @@ class Translator:
         postcondition: first newline after === (self.at_document_start)
         errors:
             if not all lines before === starts with '\\'
+        returns: the preamble string before ===, ending with `\n`
         '''
         assert self.pos == 0
         body = ''
@@ -398,9 +409,11 @@ class Translator:
             if self.at_document_start():
                 break
 
+            if self.text[self.pos] == '%':
+                self.parse_comments()
+
             if self.text[self.pos] != '\\':
                 self.error("Preamble commands need to start with \\")
-
 
             escape_start = self.pos
             self.pos += 1
@@ -421,13 +434,13 @@ class Translator:
 
         self.parse_while(lambda c: c == '=')
         self.parse_while(iswhitespace)
-        return body
+        return body + '\n'
 
     def extract_document(self):
         self.indent_level = -1  # to simulate document block being indented as if it's a command
         body = self.extract_block()
 
-        return '\n' + latex_env("document", '', body, '', '') + '\n'
+        return latex_env("document", '', body, '', '') + '\n'
 
 
 

@@ -208,6 +208,11 @@ def test_extract_arg_command():
     assert translator.extract_arg() == 'my \\textbf{word}argument'
     assert source[translator.pos] == 's'
 
+def test_extract_arg_command_comments():
+    source = 'my \\textbf{word}a%rgument}some text\nctualArgument}More text'
+    translator = Translator(source)
+    assert translator.extract_arg() == 'my \\textbf{word}actualArgument'
+    assert source[translator.pos] == 'M'
 
 def test_extract_arg_command_nested():
     source = 'my \\textbf{\\command[arg]\n{arg}}argument}some text'
@@ -244,6 +249,14 @@ def test_extract_args():
     args, argstr = translator.extract_args()
     assert args == [Arg('arg1'), Arg('arg2')]
     assert argstr == '{arg1}{arg2}'
+    assert source[translator.pos] == 's'
+
+def test_extract_args_comments():
+    source = '{arg1}{arg%2}\n3}some text'
+    translator = Translator(source)
+    args, argstr = translator.extract_args()
+    assert args == [Arg('arg1'), Arg('arg3')]
+    assert argstr == '{arg1}{arg%2}\n3}'
     assert source[translator.pos] == 's'
 
 
@@ -508,6 +521,21 @@ def test_do_environment_nested_nonewline():
     translator = Translator(source)
     translator.indent_str = '    '
     res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
-    print(res)
     assert res == '\\begin{test}\n    hello\n    \\begin{environment}\n        nested\n    \\end{environment}\n\\end{test}'
     assert translator.pos == len(source)
+
+
+def test_preamble():
+    source = '\\documentclass{article}\n===  \n    \nsome text'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    res = translator.extract_preamble()
+    assert res == '\\documentclass{article}\n'
+
+
+def test_preamble_comments():
+    source = '\\documentclass{art%HAHAHAHAHA\n\n\nicle}\n===  \n    \nsome text'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    res = translator.extract_preamble()
+    assert res == '\\documentclass{art%HAHAHAHAHA\n\n\nicle}\n'
