@@ -10,7 +10,7 @@ def translate(source):
 def test_hello():
     source = dedent('''
     \\documentclass{article}
-    \\document:
+    ===
     Hello?
     ''')
     assert translate(source) == dedent(
@@ -22,54 +22,37 @@ def test_hello():
 
 
 def test_no_starting_newline():
-    source = '\\documentclass{article}\n\\document:\nHello?'
+    source = '\\documentclass{article}\n===\nHello?'
     assert translate(source) == '\\documentclass{article}\n\\begin{document}\nHello?\n\\end{document}\n'
 
 
-def test_hello_indented():
-    source = dedent('''
-    \\documentclass{article}
-    \\document:
-        Hello?
-    ''')
-    assert translate(source) == dedent(
-    '''
-    \\documentclass{article}
-    \\begin{document}
-        Hello?
-    \\end{document}
-    ''')
 
-
-def test_double_document():
-    source = dedent('''
-    \\documentclass{article}
-    \\document:
-    Hello?
-    \\document:
-        Goodbye
-    ''')
-    res = translate(source)
-    print(res)
-    assert res == dedent(
-    '''
-    \\documentclass{article}
-    \\begin{document}
-    Hello?
-    \\begin{document}
-        Goodbye
-    \\end{document}
-    \\end{document}
-    ''')
+# def test_double_document_mark():
+#     source = dedent('''
+#     \\documentclass{article}
+#     ===
+#     Hello?
+#     ===
+#         Goodbye
+#     ''')
+#     res = translate(source)
+#     print(res)
+#     assert res == dedent(
+#     '''
+#     \\documentclass{article}
+#     \\begin{document}
+#     Hello?
+#     ===
+#         Goodbye
+#     \\end{document}
+#     ''')
 
 
 def test_indented_bad(capsys):
     source = '''
     \\documentclass{article}
-    \\document:
-    Hello?
-    \\document:
-        Goodbye
+    ===
+        Hello?
     '''
     res = translate(source)
     assert 'document as a whole must not be indented' in capsys.readouterr().err
@@ -78,20 +61,20 @@ def test_indented_bad(capsys):
 def test_equation():
     source = dedent('''
     \\documentclass{article}
-    \\document:
-        Here is an equation:
-        \\equation:
-            f(x) = x^2
+    ===
+    Here is an equation:
+    \\equation:
+        f(x) = x^2
     ''')
     res = translate(source)
     assert res == dedent(
     '''
     \\documentclass{article}
     \\begin{document}
-        Here is an equation:
-        \\begin{equation}
-            f(x) = x^2
-        \\end{equation}
+    Here is an equation:
+    \\begin{equation}
+        f(x) = x^2
+    \\end{equation}
     \\end{document}
     ''')
 
@@ -99,7 +82,7 @@ def test_equation():
 def test_multiple_equations():
     source = dedent('''
     \\documentclass{article}
-    \\document:
+    ===
     Here is an equation:
     \\equation:
         f(x) = x^2
@@ -130,7 +113,7 @@ def test_multiple_equations():
 def test_multiple_nested_environments():
     source = dedent('''
     \\documentclass{article}
-    \\document:
+    ===
     Here is an equation:
     \\equation:
         \\split:
@@ -166,7 +149,7 @@ def test_multiple_nested_environments():
 
 def test_multiple_nested_environments():
     source = dedent('''
-    \\document:
+    ===
     The document environment is the only one which doesn't need to be indented.
     \\section{Some Words}
     Here are some words that are in this section.
