@@ -125,6 +125,12 @@ class Translator:
     def not_finished(self):
         return not self.finished()
 
+    def at_document_start(self):
+        '''
+        Returns true if it's at the start of ===
+        '''
+        return self.pos+3 <= len(self.text) and self.text[self.pos:self.pos+3] == "==="
+
     def parse_while(self, pred):
         '''
         pred: a boolean-valued function (i.e. a predicate) on a character
@@ -373,6 +379,57 @@ class Translator:
         else:
             return latex_env(environment, body=body, args=argstr)
 
+
+    def extract_preamble(self):
+        '''
+        precondition: at start of document
+        postcondition: first newline after === (self.at_document_start)
+        errors:
+            if not all lines before === starts with '\\'
+        '''
+        assert self.pos == 0
+        body = ''
+
+        while self.not_finished() and not self.at_document_start():
+            token_start = self.pos
+            self.parse_while(str.isspace)
+            if self.at_document_start():
+                break
+
+            if self.text[self.pos] != '\\':
+                self.error("Preamble commands need to start with \\")
+
+
+            escape_start = self.pos
+            self.pos += 1
+            control_seq = self.get_control_seq()
+            # print(control_seq)
+            body += self.text[token_start:escape_start]
+            if control_seq in commands:
+                body += self.do_command(commands[control_seq])
+            else:
+                _, argstr = self.extract_args()
+                
+                body += '\\' + control_seq + argstr
+
+        if self.finished():
+            self.error("Missing main document body")
+
+        assert self.at_document_start()
+
+        self.parse_while(lambda c: c == '=')
+        self.parse_while(iswhitespace)
+        return body
+
+    def extract_document(self):
+        body = self.extract_block(for_environment=False, for_document=True)
+
+        return '\n' + latex_env("document", '', body, '', '') + '\n'
+
+
+
+
+
     def extract_block(self, for_environment=False, for_document=False):
         # TODO: can this be broken up into smaller methods?
         '''
@@ -472,7 +529,10 @@ class Translator:
     def translate(self):
         # import pdb;pdb.set_trace()
         try:
-            return self.extract_block()
+            body = self.extract_preamble()
+            return body + self.extract_document()
+
+            #return self.extract_block()
         except TranslationError as e:
             self.print_error(e.msg)  # XXX: check whether this works (is it .msg?)
 
