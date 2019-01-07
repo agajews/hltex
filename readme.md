@@ -56,3 +56,14 @@ Whereas LaTeX encloses the document in an enormous pair of begin/end commands, i
 HLTeX separates these two parts by `===` (or optionally more equals signs, but at least three).
 In the preamble, only commands and their arguments are allowed--in particular, this means
 environments can only be created in the document (i.e. after the `===`).
+
+### Usage
+To compile a file into LaTeX, you can use our CLI utility, like this:
+```
+hltex myfile.hltex
+```
+By default, this will put the resulting LaTeX code into a file called `myfile.tex`, at which point you can run
+```
+pdflatex myfile.tex
+```
+to generate a PDF.
