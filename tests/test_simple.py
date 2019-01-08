@@ -234,3 +234,31 @@ def test_multiple_nested_environments():
     ''')
 
 
+def test_docclass():
+    source = dedent('''
+    \\docclass{article}
+    ===
+    Hello?
+    ''')
+    assert translate(source) == dedent(
+    '''
+    \\documentclass{article}
+    \\begin{document}
+    Hello?
+    \\end{document}\n''')
+
+
+def test_docclass_options():
+    source = dedent('''
+    \\docclass[twocolumn,twoside]{article}
+    ===
+    Hello?
+    ''')
+    assert translate(source) == dedent(
+    '''
+    \\documentclass[twocolumn,twoside]{article}
+    \\begin{document}
+    Hello?
+    \\end{document}\n''')
+
+
