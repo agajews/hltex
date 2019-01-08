@@ -213,7 +213,19 @@ class Translator:
                 break
             self.pos = line_end + 1
 
-    def get_control_seq(self):
+    def parse_comments(self):
+        '''
+        precondition: `self.pos` is at '%', start of a comment
+        postcondition: `self.pos` is at the start of the next non-whitespace line (i.e.
+            after the preceeding newline), or at `len(self.text)` if there isn't a
+            next non-whitespace line
+
+        What this is really doing is just to parse this line and then any all-white lines after
+        '''
+        self.parse_until(isnewline)
+        self.parse_empty()
+
+    def parse_control_seq(self):
         '''
         precondition: `self.pos` is at the first character after the escape character ('\\')
         postcondition: `self.pos` is at the first character after the name of the command
@@ -229,38 +241,39 @@ class Translator:
         control_seq = self.text[control_start:self.pos]
         return control_seq
 
-    def extract_arg(self, close='}', required=False):
+    def parse_arg(self, close='}', required=False):
         '''
         close: the closing brace or bracket to the argument
         required: whether to error if no closing brace or bracket is found
         precondition: `self.pos` is at the first character following the opening '{' or '['
         postcondition: `self.pos` is at the first character following the closing '}' or ']',
-            or at `len(self.text)` if there is no such character; `extract_arg` ignores
-            everything except for other commands inside the braces
+            or at `len(self.text)` if there is no such character; `parse_arg` ignores
+            everything except for other commands inside the braces;
+            we also skip over comments, ignoring everything from '%' up to the end of line
         errors: if `required` and the file ends before there is a `close` character
         returns: the substring strictly between the opening and closing curly braces
         '''
         token_start = self.pos
         body = ''
         while self.not_finished():
-            self.parse_until(lambda c: c == '\\' or c == close or c == '{')
+            self.parse_until(lambda c: c == '\\' or c == close or c == '{' or c == '%')
             if self.not_finished():
                 if self.text[self.pos] == '{':
                     body += self.text[token_start:self.pos]
                     self.pos += 1
-                    body += '{' + self.extract_arg(required=True) + '}'
+                    body += '{' + self.parse_arg(required=True) + '}'
                     token_start = self.pos
                 elif self.text[self.pos] == '\\':
                     escape_start = self.pos
                     self.pos += 1
-                    control_seq = self.get_control_seq()
+                    control_seq = self.parse_control_seq()
                     # if self.at_environment():
                     #     self.error('You can\'t start an environment from a command body')
                     body += self.text[token_start:escape_start]
                     if control_seq in commands:
                         body += self.do_command(commands[control_seq])
                     else:
-                        _, argstr = self.extract_args()
+                        _, argstr = self.parse_args()
                         body += '\\' + control_seq + argstr
                         # TODO: issue a warning if the current character is a colon
                     token_start = self.pos
@@ -268,46 +281,43 @@ class Translator:
                     body += self.text[token_start:self.pos]
                     self.pos += 1
                     return body
+                elif self.text[self.pos] == '%':
+                    body += self.text[token_start:self.pos]
+                    self.parse_comments()
+                    token_start = self.pos
+
         if required:
             self.error('Missing closing `{}`'.format(close))
         else:
             return None
 
-    def extract_args(self, min_args=None, max_args=None):
+    def parse_args(self, min_args=None, max_args=None):
         '''
         min_args: an int representing the minumum number of arguments to parse; None for no minimum
         max_args: an int representing the maximum number of arguments to parse; None for unlimited
         precondition: `self.pos` is at the first character after the name of the command
         postcondition: `self.pos` is at the first character after the last argument's closing brace or bracket
         errors: if there are fewer than `min_args` arguments following the command
-        returns: a list of `Arg`s containing the parsed arguments, and a LaTeX string containing
-            the arguments in case they are for a LaTeX command
+        returns: (args, argstring) -- a list of `Arg`s containing the parsed arguments, and the original LaTeX string.
+            Comments will be included in argstring but not in args
         '''
         if max_args == 0:
             return command.translate([])
         args = []
-        argstr = ''
-        token_start = self.pos
+        parse_start = self.pos
         nargs = 0
         while True:
             self.parse_while(iswhitespace)
             if self.text[self.pos] == '{':  # TODO: make this less repetitive?
                 self.pos += 1
-                argstr += self.text[token_start:self.pos]
-                token_start = self.pos
-                arg = self.extract_arg(close='}', required=True)
-                argstr += arg + '}'
-                token_start = self.pos
+                arg = self.parse_arg(close='}', required=True)
                 args.append(Arg(arg, optional=False))
                 nargs += 1
             elif self.text[self.pos] == '[':
                 arg_start = self.pos
-                argstr += self.text[token_start:self.pos]
                 self.pos += 1
-                arg = self.extract_arg(close=']')
+                arg = self.parse_arg(close=']')
                 if arg is not None:
-                    token_start = self.pos
-                    argstr += '[' + arg + ']'
                     args.append(Arg(arg, optional=True))
                     nargs += 1
                 else:
@@ -320,6 +330,8 @@ class Translator:
                     break
             if max_args is not None and nargs >= max_args:
                 break
+
+        argstr = self.text[parse_start:self.pos]
         return args, argstr
 
     def do_command(self, command):
@@ -336,7 +348,7 @@ class Translator:
         '''
         if len(command.params) == 0:  # this is just for efficiency
             return command.translate([])
-        args, argstr = self.extract_args(max_args=len(command.params))
+        args, argstr = self.parse_args(max_args=len(command.params))
         return command.translate(args)
 
     def do_environment(self, environment, args, argstr, outer_indent):
@@ -366,7 +378,7 @@ class Translator:
         '''
         self.parse_while(iswhitespace)
         if self.text[self.pos] == '\n':
-            body = self.extract_block()
+            body = self.parse_block()
             if outer_indent > 0:
                 body += self.indent_str * outer_indent
         else:
@@ -382,12 +394,13 @@ class Translator:
             return latex_env(environment, body=body, args=argstr)
 
 
-    def extract_preamble(self):
+    def parse_preamble(self):
         '''
         precondition: at start of document
         postcondition: first newline after === (self.at_document_start)
         errors:
             if not all lines before === starts with '\\'
+        returns: the preamble string before ===, ending with `\n`
         '''
         assert self.pos == 0
         body = ''
@@ -398,20 +411,21 @@ class Translator:
             if self.at_document_start():
                 break
 
+            if self.text[self.pos] == '%':
+                self.parse_comments()
+
             if self.text[self.pos] != '\\':
                 self.error("Preamble commands need to start with \\")
 
-
             escape_start = self.pos
             self.pos += 1
-            control_seq = self.get_control_seq()
+            control_seq = self.parse_control_seq()
             # print(control_seq)
             body += self.text[token_start:escape_start]
             if control_seq in commands:
                 body += self.do_command(commands[control_seq])
             else:
-                _, argstr = self.extract_args()
-
+                _, argstr = self.parse_args()
                 body += '\\' + control_seq + argstr
 
         if self.finished():
@@ -421,16 +435,17 @@ class Translator:
 
         self.parse_while(lambda c: c == '=')
         self.parse_while(iswhitespace)
-        return body
+        return body + '\n'
 
-    def extract_document(self):
+    def parse_document(self):
         self.indent_level = -1  # to simulate document block being indented as if it's a command
-        body = self.extract_block()
+        body = self.parse_block()
 
-        return '\n' + latex_env("document", '', body, '', '') + '\n'
+        return latex_env("document", '', body, '', '') + '\n'
 
-    def extract_block(self):
+    def parse_block(self):
         # TODO: can this be broken up into smaller methods?
+        # TODO: comments
         '''
         precondition: `self.pos` is at the first newline after the colon for environments,
             or the beginning of the file for the outermost call
@@ -459,7 +474,7 @@ class Translator:
         self.indent_level = indent_level
 
         while self.not_finished():
-            self.parse_until(lambda c: c == '\\' or c == '\n')
+            self.parse_until(lambda c: c == '\\' or c == '\n' or c == '%')
             if self.finished():
                 break
 
@@ -480,13 +495,13 @@ class Translator:
                 # print('Found escape at pos {}'.format(self.pos))
                 escape_start = self.pos
                 self.pos += 1
-                control_seq = self.get_control_seq()
+                control_seq = self.parse_control_seq()
                 # print(control_seq)
                 body += self.text[token_start:escape_start]
                 if control_seq in commands:
                     body += self.do_command(commands[control_seq])
                 else:
-                    args, argstr = self.extract_args()
+                    args, argstr = self.parse_args()
                     whitespace_start = self.pos
                     self.parse_while(iswhitespace)
                     if self.text[self.pos] == ':':
@@ -509,6 +524,10 @@ class Translator:
                     else:
                         body += '\\' + control_seq + argstr + self.text[whitespace_start:self.pos]
                 token_start = self.pos
+            elif self.text[self.pos] == '%':  # include the comments but ignore any \\
+                self.parse_comments()
+                body += self.text[token_start:self.pos]
+                token_start = self.pos
         body += self.text[token_start:]
         if body[-1] != '\n':
             body += '\n'
@@ -517,10 +536,10 @@ class Translator:
     def translate(self):
         # import pdb;pdb.set_trace()
         try:
-            body = self.extract_preamble()
-            return body + self.extract_document()
+            body = self.parse_preamble()
+            return body + self.parse_document()
 
-            #return self.extract_block()
+            #return self.parse_block()
         except TranslationError as e:
             self.print_error(e.msg)  # XXX: check whether this works (is it .msg?)
 
