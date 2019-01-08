@@ -70,8 +70,10 @@ class Environment:
         assert all([p in '!?' for p in params])
 
     def translate(self, body, args):
-        return self.translate_fn(body, *resolve_args(self.name, self.params, args))
-
+        try:
+            return self.translate_fn(body, *resolve_args(self.name, self.params, args))
+        except TranslationError as e:
+            raise e
 
 def latex_cmd(name, *args):
     return '\\%s%s' % (name, unresolve_args(args))
@@ -98,6 +100,9 @@ def translate_eq(body, label):
 
 
 def translate_pysplice(body):
+    '''
+    Executes the body as a python snippet using epicbox
+    '''
     global epicbox
     if epicbox is None:
         try:
@@ -108,20 +113,19 @@ def translate_pysplice(body):
                     epicbox.Profile('python', 'python:3.6.5-alpine')
                 ]
             )
-        ## TODO: allow error raising by passing in a new param to translate_pysplice
         except Error as e:
-            print(e.msg)
-            raise e
-        #     self.print_error(e.msg)
-        #     self.error("Failed to configure Epicbox for pysplice. Make sure you have epicbox and docker installed and configured.")
+            raise TranslationError("Failed to configure Epicbox for pysplice. Make sure you have epicbox and docker installed and configured.\n"
+                                    + e.msg)
 
-    files = [{'name': 'main.py', 'content': dedent(body).encode('utf-8')}]
+    body = dedent(body).encode('utf-8')
+
+    files = [{'name': 'main.py', 'content': body}]
     limits = {'cputime': 1, 'memory': 64}
     result = epicbox.run('python', 'python3 main.py', files=files, limits=limits)
-    print(result)
+    #print(result)
 
     if result['exit_code'] != 0:
-        raise TranslationError(result)
+        raise TranslationError("Pysplice execution failed.\nCode block:\n{}\n\nOutput:\n{}".format(body, str(result)))
 
     return result['stdout'].decode('utf-8')
 
@@ -164,7 +168,7 @@ class Translator:
     def not_finished(self):
         return not self.finished()
 
-    def at_document_start(self):
+    def at_end_of_preamble(self):
         '''
         Returns true if it's at the start of ===
         '''
@@ -210,7 +214,6 @@ class Translator:
         return len(indent) // len(self.indent_str)
 
     def calc_indent_level(self):
-        # TODO: make all functions that don't move self.pos clear from its name (e.g. peek_..., validate_...)
         assert self.pos == 0 or self.finished() or isnewline(self.text[self.pos - 1]), "pos: {}, text: {}".format(self.pos, self.text[self.pos-1:self.pos+10])
         '''
         precondition: `self.pos` is at the start of a line
@@ -390,7 +393,8 @@ class Translator:
         return command.translate(args)
 
     def do_environment(self, environment, args, argstr, outer_indent):
-        # TODO: pass the translate_fn the indentation level
+        # TODO: ensure the translate_fn use the same indent string and starts the block with 0 indent,
+        #       then we'll wrap this block with the correct indentation level
         '''
         environment: either an `Environment` object to do the translation, or a string,
             the name of a LaTeX environment for which to insert a corresponding begin/end
@@ -438,7 +442,7 @@ class Translator:
     def parse_preamble(self):
         '''
         precondition: at start of document
-        postcondition: first newline after === (self.at_document_start)
+        postcondition: first newline after === (self.at_end_of_preamble), about to start document
         errors:
             if not all lines before === starts with '\\'
         returns: the preamble string before ===, ending with `\n`
@@ -446,10 +450,10 @@ class Translator:
         assert self.pos == 0
         body = ''
 
-        while self.not_finished() and not self.at_document_start():
+        while self.not_finished() and not self.at_end_of_preamble():
             token_start = self.pos
             self.parse_while(str.isspace)
-            if self.at_document_start():
+            if self.at_end_of_preamble():
                 break
 
             if self.text[self.pos] == '%':
@@ -472,7 +476,7 @@ class Translator:
         if self.finished():
             self.error("Missing main document body")
 
-        assert self.at_document_start()
+        assert self.at_end_of_preamble()
 
         self.parse_while(lambda c: c == '=')
         self.parse_while(iswhitespace)
@@ -499,6 +503,7 @@ class Translator:
         returns: the substring containing everything from the original value of `self.pos`
             at calltime through and including the newline before the next non-whitespace
             line, or through the end of the file if the block is at the end of the file
+            If is_raw is True, then return the block of text unmodified
         '''
         body = ''
         # print('starting block at {}, `{}`'.format(self.pos, self.text[self.pos:self.pos+10]))
@@ -580,10 +585,8 @@ class Translator:
         try:
             body = self.parse_preamble()
             return body + self.parse_document()
-
-            #return self.parse_block()
         except TranslationError as e:
-            self.print_error(e.msg)  # XXX: check whether this works (is it .msg?)
+            self.print_error(e.msg)
 
     def error(self, msg):
         raise TranslationError(msg)

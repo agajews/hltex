@@ -1,6 +1,11 @@
 import pytest
-from hltex.translator import Translator, TranslationError, Arg, Command, Environment, resolve_args
+from hltex.translator import Translator, TranslationError, Arg, Command, Environment, resolve_args, environments
 
+def prepTranslator(source, indent_level=-1):
+    translator = Translator(source)
+    translator.indent_str = '    '
+    translator.indent_level = indent_level
+    return translator
 
 def test_parse_while():
     source = 'aaaaabbbb'
@@ -398,9 +403,7 @@ def test_parse_block():
 
 def test_parse_block_document():
     source = '\nhello\n\ngoodbye'
-    translator = Translator(source)
-    translator.indent_str = '    '
-    translator.indent_level = -1
+    translator = prepTranslator(source)
     assert translator.parse_block() == '\nhello\n\ngoodbye\n'
     assert translator.pos == len(source)
 
@@ -434,27 +437,21 @@ def test_parse_block_nested_end():
 
 def test_parse_block_raw_with_indent():
     source = '\nhello\n        weird indentation\n\n    this too\ngoodbye'
-    translator = Translator(source)
-    translator.indent_str = '    '
-    translator.indent_level = -1
+    translator = prepTranslator(source)
     assert translator.parse_block(is_raw=True) == '\nhello\n        weird indentation\n\n    this too\ngoodbye\n'
     assert translator.pos == len(source)
 
 
 def test_parse_block_raw_with_comments():
     source = '\nhello\n    %wha t is \\dis\n\n%this too\ngoodbye'
-    translator = Translator(source)
-    translator.indent_str = '    '
-    translator.indent_level = -1
+    translator = prepTranslator(source)
     assert translator.parse_block(is_raw=True) == '\nhello\n    %wha t is \\dis\n\n%this too\ngoodbye\n'
     assert translator.pos == len(source)
 
 
 def test_parse_block_raw_with_commands():
     source = '\nhello\n    \\ignore_this: \\distoo\n\n\\pysplice too\ngoodbye'
-    translator = Translator(source)
-    translator.indent_str = '    '
-    translator.indent_level = -1
+    translator = prepTranslator(source)
     assert translator.parse_block(is_raw=True) == '\nhello\n    \\ignore_this: \\distoo\n\n\\pysplice too\ngoodbye\n'
     assert translator.pos == len(source)
 
@@ -497,9 +494,7 @@ def test_parse_block_environment():
 
 def test_parse_block_nonenvironment_bad():
     source = '\n    hello\n    \n    goodbye'
-    translator = Translator(source)
-    translator.indent_str = '    '
-    translator.indent_level = -1
+    translator = prepTranslator(source)
     with pytest.raises(TranslationError) as excinfo:
         block = translator.parse_block()
     assert 'document as a whole must not be indented' in excinfo.value.msg
@@ -507,9 +502,7 @@ def test_parse_block_nonenvironment_bad():
 
 def test_parse_block_nonenvironment_args():
     source = '\\environment[arg1] { arg2}:\n    contents\n    contents2\ngoodbye'
-    translator = Translator(source)
-    translator.indent_str = '    '
-    translator.indent_level = -1
+    translator = prepTranslator(source)
     block = translator.parse_block()
     assert block == '\\begin{environment}[arg1] { arg2}\n    contents\n    contents2\n\\end{environment}\ngoodbye\n'
 
@@ -585,3 +578,24 @@ def test_parse_block_pysplice():
     res = translator.parse_block()
     assert res == '    3\n'
 
+def test_do_environment_pysplice():
+    source = '    \\pysplice:\n        print("3")\nother text'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    translator.indent_level = 0
+    res = translator.parse_block()
+    assert res == '    3\n'
+
+def test_do_environment_pysplice():
+    source = '\nprint("3")\n'
+    translator = prepTranslator(source)
+    assert translator.do_environment(environments['pysplice'], [], '', 0) == '3\n'
+
+
+def test_do_environment_pysplice_bad():
+    source = '\nprin("3")\n'
+    translator = prepTranslator(source)
+    with pytest.raises(TranslationError) as excinfo:
+        translator.do_environment(environments['pysplice'], [], '', 0)
+    assert 'Pysplice execution failed.' in excinfo.value.msg
+    assert 'NameError' in excinfo.value.msg

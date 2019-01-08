@@ -262,3 +262,20 @@ def test_docclass_options():
     \\end{document}\n''')
 
 
+
+def test_docclass_with_normal_latex_begin_end():
+    source = dedent('''
+    \\docclass{article}
+    ===
+    \\begin{document}
+    Hello!
+    \\end{document}
+    ''')
+    assert translate(source) == dedent('''
+    \\documentclass{article}
+    \\begin{document}
+    \\begin{document}
+    Hello!
+    \\end{document}
+    \\end{document}
+    ''')
