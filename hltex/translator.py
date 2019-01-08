@@ -411,7 +411,7 @@ class Translator:
                 body += self.do_command(commands[control_seq])
             else:
                 _, argstr = self.extract_args()
-                
+
                 body += '\\' + control_seq + argstr
 
         if self.finished():
@@ -428,10 +428,6 @@ class Translator:
         body = self.extract_block()
 
         return '\n' + latex_env("document", '', body, '', '') + '\n'
-
-
-
-
 
     def extract_block(self):
         # TODO: can this be broken up into smaller methods?
@@ -474,7 +470,6 @@ class Translator:
                 # print(indent_level)
                 if indent_level > self.indent_level:  # TODO: remove this
                     self.error('Invalid indentation not following the opening of an environment')
-                
 
                 if indent_level <= prev_block_indent:  # unindent, end block
                     body += self.text[token_start:line_start]
@@ -502,10 +497,9 @@ class Translator:
                             environment = environments[control_seq]
                         else:
                             environment = control_seq
-                        
 
                         outer_indent = prev_block_indent + 1
-                        
+
                         body += self.do_environment(environment, args, argstr, outer_indent) + '\n'
                         indent_level = self.calc_indent_level()
                         if indent_level <= prev_block_indent:
