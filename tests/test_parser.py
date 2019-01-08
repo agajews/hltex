@@ -575,3 +575,13 @@ def test_preamble_comments():
     translator.indent_str = '    '
     res = translator.parse_preamble()
     assert res == '\\documentclass{art%HAHAHAHAHA\n\n\nicle}\n'
+
+
+def test_parse_block_pysplice():
+    source = '    \\pysplice:\n        print("3")\nother text'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    translator.indent_level = 0
+    res = translator.parse_block()
+    assert res == '    3\n'
+

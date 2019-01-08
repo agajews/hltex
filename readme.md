@@ -71,3 +71,16 @@ Optionally, you can specify your own output file, like this:
 ```
 hltex myfile.hltex --out myotherfile.tex
 ```
+
+
+### Inline-python support
+We use (Epicbox)[https://github.com/StepicOrg/epicbox] and (Docker)[https://hub.docker.com/]. After installing Docker, run
+
+```
+pip install epicbox
+docker pull python:3.6.5-alpine
+```
+
+Now you can run python code in HLTeX and have save its output directly to your generated LaTeX file!
+
+[example coming]

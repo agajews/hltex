@@ -1,4 +1,6 @@
 import sys
+from textwrap import dedent
+epicbox = None
 
 
 class Arg:
@@ -88,7 +90,32 @@ def translate_eq(body, label):
 
 
 def translate_pysplice(body):
-    return 'h3llofrompython'
+    global epicbox
+    if epicbox is None:
+        try:
+            import epicbox
+
+            epicbox.configure(
+                profiles=[
+                    epicbox.Profile('python', 'python:3.6.5-alpine')
+                ]
+            )
+        ## TODO: allow error raising by passing in a new param to translate_pysplice
+        except Error as e:
+            print(e.msg)
+            raise e
+        #     self.print_error(e.msg)
+        #     self.error("Failed to configure Epicbox for pysplice. Make sure you have epicbox and docker installed and configured.")
+
+    files = [{'name': 'main.py', 'content': dedent(body).encode('utf-8')}]
+    limits = {'cputime': 1, 'memory': 64}
+    result = epicbox.run('python', 'python3 main.py', files=files, limits=limits)
+    print(result)
+
+    if result['exit_code'] != 0:
+        raise TranslationError(result)
+
+    return result['stdout'].decode('utf-8')
 
 
 environments = {
@@ -432,7 +459,6 @@ class Translator:
                 body += self.do_command(commands[control_seq])
             else:
                 _, argstr = self.parse_args()
-                
                 body += '\\' + control_seq + argstr
 
         if self.finished():
@@ -449,7 +475,6 @@ class Translator:
         body = self.parse_block()
 
         return latex_env("document", '', body, '', '') + '\n'
-
 
     def parse_block(self, is_raw=False):
         # TODO: can this be broken up into smaller methods?
@@ -519,11 +544,12 @@ class Translator:
                             environment = environments[control_seq]
                         else:
                             environment = control_seq
-                        
 
                         outer_indent = prev_block_indent + 1
-                        
-                        body += self.do_environment(environment, args, argstr, outer_indent) + '\n'
+
+                        body += self.do_environment(environment, args, argstr, outer_indent)
+                        if body[-1] != '\n':
+                            body += '\n'
                         indent_level = self.calc_indent_level()
                         if indent_level <= prev_block_indent:
                             self.indent_level = indent_level

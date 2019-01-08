@@ -45,12 +45,15 @@ def test_hello_pysplice():
     ===
     Hello?
     \\pysplice:
-        wow_ignore_dis
-        _plz
-        \\this too:
-        %wut is dis
+        h = "hello"
+        if True:
+            print(h)
+        y = "\\this should be ignored%this TOO"
+        #_plz
+        #\\this too:
+        #%wut is dis
 
-            weird indentation too
+            #weird indentation too
 
 
     Bye
@@ -62,7 +65,7 @@ def test_hello_pysplice():
     \\documentclass{article}
     \\begin{document}
     Hello?
-    h3llofrompython
+    hello
     Bye
     \\end{document}\n''')
 
