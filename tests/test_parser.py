@@ -98,8 +98,8 @@ def test_calc_indent_level_double():
     translator = Translator(source)
     translator.indent_str = '    '
     with pytest.raises(TranslationError) as excinfo:
-        translator.calc_indent_level()
-    assert 'one level at a time' in excinfo.value.msg
+        translator.parse_block()
+    assert 'Indent Error' in excinfo.value.msg
 
 
 def test_calc_indent_level_bad():
@@ -429,6 +429,33 @@ def test_parse_block_nested_end():
     translator.indent_str = '    '
     translator.indent_level = 1
     assert translator.parse_block() == '\n        hello\n    \n    '
+    assert translator.pos == len(source)
+
+
+def test_parse_block_raw_with_indent():
+    source = '\nhello\n        weird indentation\n\n    this too\ngoodbye'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    translator.indent_level = -1
+    assert translator.parse_block(is_raw=True) == '\nhello\n        weird indentation\n\n    this too\ngoodbye\n'
+    assert translator.pos == len(source)
+
+
+def test_parse_block_raw_with_comments():
+    source = '\nhello\n    %wha t is \\dis\n\n%this too\ngoodbye'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    translator.indent_level = -1
+    assert translator.parse_block(is_raw=True) == '\nhello\n    %wha t is \\dis\n\n%this too\ngoodbye\n'
+    assert translator.pos == len(source)
+
+
+def test_parse_block_raw_with_commands():
+    source = '\nhello\n    \\ignore_this: \\distoo\n\n\\pysplice too\ngoodbye'
+    translator = Translator(source)
+    translator.indent_str = '    '
+    translator.indent_level = -1
+    assert translator.parse_block(is_raw=True) == '\nhello\n    \\ignore_this: \\distoo\n\n\\pysplice too\ngoodbye\n'
     assert translator.pos == len(source)
 
 

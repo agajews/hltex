@@ -21,6 +21,52 @@ def test_hello():
     \\end{document}\n''')
 
 
+def test_hello_comments():
+    source = dedent('''
+    \\documentclass{arti%???
+    cle}
+    ===
+    Hello?
+    %bye
+    ''')
+    assert translate(source) == dedent(
+    '''
+    \\documentclass{arti%???
+    cle}
+    \\begin{document}
+    Hello?
+    %bye
+    \\end{document}\n''')
+
+
+def test_hello_pysplice():
+    source = dedent('''
+    \\documentclass{article}
+    ===
+    Hello?
+    \\pysplice:
+        wow_ignore_dis
+        _plz
+        \\this too:
+        %wut is dis
+
+            weird indentation too
+
+
+    Bye
+    ''')
+    res = translate(source)
+    print(res)
+    assert res == dedent(
+    '''
+    \\documentclass{article}
+    \\begin{document}
+    Hello?
+    h3llofrompython
+    Bye
+    \\end{document}\n''')
+
+
 def test_no_starting_newline():
     source = '\\documentclass{article}\n===\nHello?'
     assert translate(source) == '\\documentclass{article}\n\\begin{document}\nHello?\n\\end{document}\n'

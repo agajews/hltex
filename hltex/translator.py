@@ -52,10 +52,11 @@ class Command:
 
 
 class Environment:
-    def __init__(self, name, translate_fn, params=''):
+    def __init__(self, name, translate_fn, params='', is_raw=False):
         self.name = name
         self.translate_fn = translate_fn
         self.params = params
+        self.is_raw = is_raw
         assert all([p in '!?' for p in params])
 
     def translate(self, body, args):
@@ -86,8 +87,13 @@ def translate_eq(body, label):
     return latex_env('equation', before=before, body=body)
 
 
+def translate_pysplice(body):
+    return 'h3llofrompython'
+
+
 environments = {
-    'eq': Environment('eq', translate_eq, params='?')
+    'eq': Environment('eq', translate_eq, params='?'),
+    'pysplice': Environment('pysplice', translate_pysplice, is_raw=True)
 }
 
 
@@ -187,11 +193,8 @@ class Translator:
         if self.indent_str == None:
             self.indent_str = indent
         indent_level = self.level_of_indent(indent)
-        if indent_level > self.indent_level and not indent_level == self.indent_level + 1:
-            if self.indent_level == -1:
-                self.error('The document as a whole must not be indented')
-            else:
-                self.error('You can only indent one level at a time')
+        if self.indent_level == -1 and indent_level != 0:
+            self.error('The document as a whole must not be indented')
         level = self.level_of_indent(indent)
         self.pos = indent_start
         return level
@@ -376,12 +379,15 @@ class Translator:
                 not a whole repetition of `self.indent_str`)
         returns: a translated LaTeX string for the environment
         '''
+        is_raw = isinstance(environment, Environment) and environment.is_raw
+
         self.parse_while(iswhitespace)
         if self.text[self.pos] == '\n':
-            body = self.parse_block()
+            body = self.parse_block(is_raw=is_raw)
             if outer_indent > 0:
                 body += self.indent_str * outer_indent
         else:
+            # TODO: check for \\ to support hltex commands in a one-liner
             body_start = self.pos
             body_end = self.text.find('\n', self.pos)
             if body_end == -1:
@@ -445,9 +451,8 @@ class Translator:
         return latex_env("document", '', body, '', '') + '\n'
 
 
-    def parse_block(self):
+    def parse_block(self, is_raw=False):
         # TODO: can this be broken up into smaller methods?
-        # TODO: comments
         '''
         precondition: `self.pos` is at the first newline after the colon for environments,
             or the beginning of the file for the outermost call
@@ -470,13 +475,13 @@ class Translator:
         indent_level = self.calc_indent_level()
         # print(indent_level)
         if indent_level != self.indent_level + 1:
-            self.error('You must either put the body of an environment all on one line, or on an indented block on the following line')
+            self.error('Indent Error. You must either put the body of an environment all on one line, or on an indented block on the following line')
 
         prev_block_indent = self.indent_level
         self.indent_level = indent_level
 
         while self.not_finished():
-            self.parse_until(lambda c: c == '\\' or c == '\n' or c == '%')
+            self.parse_until(lambda c: c == '\n' or (not is_raw and (c == '\\' or c == '%')))
             if self.finished():
                 break
 
@@ -485,7 +490,7 @@ class Translator:
                 line_start = self.pos
                 indent_level = self.calc_indent_level()
                 # print(indent_level)
-                if indent_level > self.indent_level:  # TODO: remove this
+                if not is_raw and indent_level > self.indent_level:
                     self.error('Invalid indentation not following the opening of an environment')            
 
                 if indent_level <= prev_block_indent:  # unindent, end block
@@ -550,4 +555,5 @@ class Translator:
         raise TranslationError(msg)
 
     def print_error(self, msg):
-        sys.stderr.write('{} at char {}'.format(msg, self.pos))  # TODO: better errors
+        ## TODO: prettier errors (line number, another line with ^ pointing to error character, etc.)
+        sys.stderr.write('{} at char {} (next 10 chars: {})'.format(msg, self.pos, self.text[self.pos:self.pos+10]))  # TODO: better errors

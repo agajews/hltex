@@ -3,9 +3,12 @@
 The document environment is the only one which doesn't need to be indented.
 \section{Some Words}
 Here are some words that are in this section.
-Math is fun, so here's an equation:
+Math is fun, so here's an equation: %hello
 \eq:
     f(x) = x^2 + 3
+\pysplice:
+    return "34"
+
 We might want to give our equation a label, like this:
 \eq[cubic]:
     f(x) = x^3 - 4x^2 + 2
