@@ -40,6 +40,14 @@ def resolve_args(name, params, args):
                 all_args.append(None)
     return all_args
 
+
+def unresolve_args(args):
+    argstr = ''
+    for arg in args:
+        if arg is not None and arg.contents is not None:
+            argstr += '[%s]' % arg.contents if arg.optional else '{%s}' % arg.contents
+    return argstr
+
 class Command:
     def __init__(self, name, translate_fn, params=''):
         self.name = name
@@ -62,20 +70,20 @@ class Environment:
         return self.translate_fn(body, *resolve_args(self.name, self.params, args))
 
 
-def latex_cmd(name, args):
-    return '\\%s%s' % (name, ''.join('{%s}' % arg for arg in args))
+def latex_cmd(name, *args):
+    return '\\%s%s' % (name, unresolve_args(args))
 
 
 def latex_env(name, before='', body='', after='', args=''):
     return '\\begin{%s}%s%s%s%s\\end{%s}' % (name, args, before, body, after, name)
 
 
-def translate_tbf(args):
-    return latex_cmd('textbf', args)
+def translate_docclass(opts, arg):
+    return latex_cmd('documentclass', Arg(opts, optional=True), Arg(arg))
 
 
 commands = {
-    'tbf': Command('tbf', translate_tbf, params='!')
+    'docclass': Command('docclass', translate_docclass, params='?!')
 }
 
 
