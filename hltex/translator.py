@@ -125,7 +125,9 @@ def translate_pysplice(body):
     #print(result)
 
     if result['exit_code'] != 0:
-        raise TranslationError("Pysplice execution failed.\nCode block:\n{}\n\nOutput:\n{}".format(body, str(result)))
+        err_msg = "Pysplice execution failed.\nCode block:\n{}\n\nOutput:\n{}".format(body, str(result))
+        print(err_msg)
+        raise TranslationError(err_msg)
 
     return result['stdout'].decode('utf-8')
 
@@ -503,6 +505,7 @@ class Translator:
         returns: the substring containing everything from the original value of `self.pos`
             at calltime through and including the newline before the next non-whitespace
             line, or through the end of the file if the block is at the end of the file
+            
             If is_raw is True, then return the block of text unmodified
         '''
         body = ''
@@ -594,3 +597,10 @@ class Translator:
     def print_error(self, msg):
         ## TODO: prettier errors (line number, another line with ^ pointing to error character, etc.)
         sys.stderr.write('{} at char {} (next 10 chars: {})'.format(msg, self.pos, self.text[self.pos:self.pos+10]))  # TODO: better errors
+
+
+def prepTranslator(source, indent_level=0):
+    translator = Translator(source)
+    translator.indent_str = '    '
+    translator.indent_level = indent_level
+    return translator

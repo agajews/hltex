@@ -1,11 +1,7 @@
 import pytest
-from hltex.translator import Translator, TranslationError, Arg, Command, Environment, resolve_args, environments
+from textwrap import dedent
+from hltex.translator import Translator, prepTranslator, TranslationError, Arg, Command, Environment, resolve_args, environments
 
-def prepTranslator(source, indent_level=-1):
-    translator = Translator(source)
-    translator.indent_str = '    '
-    translator.indent_level = indent_level
-    return translator
 
 def test_parse_while():
     source = 'aaaaabbbb'
@@ -55,8 +51,7 @@ def test_validate_indent_bad():
 
 def test_level_of_indent():
     source = 'aaaaabbbb'
-    translator = Translator(source)
-    translator.indent_str = '    '
+    translator = prepTranslator(source)
     assert translator.level_of_indent('') == 0
     assert translator.level_of_indent('    ') == 1
     assert translator.level_of_indent('            ') == 3
@@ -69,14 +64,12 @@ def test_level_of_indent():
 def test_calc_indent_level_first():
     source = 'some text'
     translator = Translator(source)
-    # translator.indent_str = '    '
     assert translator.calc_indent_level() == 0
 
 
 def test_calc_indent_level_good():
     source = '    some text'
-    translator = Translator(source)
-    translator.indent_str = '    '
+    translator = prepTranslator(source)
     assert translator.calc_indent_level() == 1
     assert source[translator.pos] == ' '
     assert translator.pos == 0
@@ -84,8 +77,7 @@ def test_calc_indent_level_good():
 
 def test_calc_indent_level_empty():
     source = '    \n    some text'
-    translator = Translator(source)
-    translator.indent_str = '    '
+    translator = prepTranslator(source)
     assert translator.calc_indent_level() == 1
     assert source[translator.pos] == ' '
     assert translator.pos == 0
@@ -93,15 +85,13 @@ def test_calc_indent_level_empty():
 
 def test_calc_indent_level_end():
     source = '    '
-    translator = Translator(source)
-    translator.indent_str = '    '
+    translator = prepTranslator(source)
     assert translator.calc_indent_level() == 1
     assert translator.pos == 0
 
 def test_calc_indent_level_double():
     source = '        some text'
-    translator = Translator(source)
-    translator.indent_str = '    '
+    translator = prepTranslator(source)
     with pytest.raises(TranslationError) as excinfo:
         translator.parse_block()
     assert 'Indent Error' in excinfo.value.msg
@@ -109,8 +99,7 @@ def test_calc_indent_level_double():
 
 def test_calc_indent_level_bad():
     source = '   some text'
-    translator = Translator(source)
-    translator.indent_str = '    '
+    translator = prepTranslator(source)
     with pytest.raises(TranslationError) as excinfo:
         translator.calc_indent_level()
     assert 'multiples of the base' in excinfo.value.msg
@@ -395,32 +384,28 @@ def test_do_command_multiple():
 
 def test_parse_block():
     source = '\n    hello\n    \ngoodbye'
-    translator = Translator(source)
-    translator.indent_str = '    '
+    translator = prepTranslator(source)
     assert translator.parse_block() == '\n    hello\n    \n'
     assert source[translator.pos] == 'g'
 
 
 def test_parse_block_document():
     source = '\nhello\n\ngoodbye'
-    translator = prepTranslator(source)
+    translator = prepTranslator(source, -1)
     assert translator.parse_block() == '\nhello\n\ngoodbye\n'
     assert translator.pos == len(source)
 
 
 def test_parse_block_end():
     source = '\n    hello\n    \n'
-    translator = Translator(source)
-    translator.indent_str = '    '
+    translator = prepTranslator(source)
     assert translator.parse_block() == '\n    hello\n    \n'
     assert translator.pos == len(source)
 
 
 def test_parse_block_nested():
     source = '\n        hello\n    \n    goodbye'
-    translator = Translator(source)
-    translator.indent_str = '    '
-    translator.indent_level = 1
+    translator = prepTranslator(source, 1)
     assert translator.parse_block() == '\n        hello\n    \n'
     assert source[translator.pos] == ' '
     assert translator.pos == 20
@@ -428,65 +413,35 @@ def test_parse_block_nested():
 
 def test_parse_block_nested_end():
     source = '\n        hello\n    \n    '
-    translator = Translator(source)
-    translator.indent_str = '    '
-    translator.indent_level = 1
+    translator = prepTranslator(source, 1)
     assert translator.parse_block() == '\n        hello\n    \n    '
     assert translator.pos == len(source)
 
 
 def test_parse_block_raw_with_indent():
     source = '\nhello\n        weird indentation\n\n    this too\ngoodbye'
-    translator = prepTranslator(source)
+    translator = prepTranslator(source, -1)
     assert translator.parse_block(is_raw=True) == '\nhello\n        weird indentation\n\n    this too\ngoodbye\n'
     assert translator.pos == len(source)
 
 
 def test_parse_block_raw_with_comments():
     source = '\nhello\n    %wha t is \\dis\n\n%this too\ngoodbye'
-    translator = prepTranslator(source)
+    translator = prepTranslator(source, -1)
     assert translator.parse_block(is_raw=True) == '\nhello\n    %wha t is \\dis\n\n%this too\ngoodbye\n'
     assert translator.pos == len(source)
 
 
 def test_parse_block_raw_with_commands():
     source = '\nhello\n    \\ignore_this: \\distoo\n\n\\pysplice too\ngoodbye'
-    translator = prepTranslator(source)
+    translator = prepTranslator(source, -1)
     assert translator.parse_block(is_raw=True) == '\nhello\n    \\ignore_this: \\distoo\n\n\\pysplice too\ngoodbye\n'
     assert translator.pos == len(source)
 
 
-def test_do_environment():
-    source = '\n    hello\n    \ngoodbye'
-    translator = Translator(source)
-    translator.indent_str = '    '
-    res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
-    assert res == '\\begin{test}\n    hello\n    \n\\end{test}'
-    assert source[translator.pos] == 'g'
-
-
-def test_do_environment_args():
-    source = '\n    hello\n    \ngoodbye'
-    translator = Translator(source)
-    translator.indent_str = '    '
-    res = translator.do_environment(Environment('test', lambda b, a: '\\begin{test}\\textbf{%s}%s\\end{test}' % (a, b), '!'), [Arg('arg1')], '', 0)
-    assert res == '\\begin{test}\\textbf{arg1}\n    hello\n    \n\\end{test}'
-    assert source[translator.pos] == 'g'
-
-
-def test_do_environment_bad():
-    source = '\nhello\n\ngoodbye'
-    translator = Translator(source)
-    translator.indent_str = '    '
-    with pytest.raises(TranslationError) as excinfo:
-        translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
-    assert 'indented block on the following line' in excinfo.value.msg
-
-
 def test_parse_block_environment():
     source = '\n    hello\n    \\environment:\n        nested\ngoodbye'
-    translator = Translator(source)
-    translator.indent_str = '    '
+    translator = prepTranslator(source)
     block = translator.parse_block()
     assert block == '\n    hello\n    \\begin{environment}\n        nested\n    \\end{environment}\n'
     assert source[translator.pos] == 'g'
@@ -494,7 +449,7 @@ def test_parse_block_environment():
 
 def test_parse_block_nonenvironment_bad():
     source = '\n    hello\n    \n    goodbye'
-    translator = prepTranslator(source)
+    translator = prepTranslator(source, -1)
     with pytest.raises(TranslationError) as excinfo:
         block = translator.parse_block()
     assert 'document as a whole must not be indented' in excinfo.value.msg
@@ -502,26 +457,47 @@ def test_parse_block_nonenvironment_bad():
 
 def test_parse_block_nonenvironment_args():
     source = '\\environment[arg1] { arg2}:\n    contents\n    contents2\ngoodbye'
-    translator = prepTranslator(source)
+    translator = prepTranslator(source, -1)
     block = translator.parse_block()
     assert block == '\\begin{environment}[arg1] { arg2}\n    contents\n    contents2\n\\end{environment}\ngoodbye\n'
 
 
 def test_parse_block_environment_indented():
     source = '\n        hello\n        \\environment:\n            nested\n    goodbye'
-    translator = Translator(source)
-    translator.indent_str = '    '
-    translator.indent_level = 1
+    translator = prepTranslator(source, 1)
     block = translator.parse_block()
     assert block == '\n        hello\n        \\begin{environment}\n            nested\n        \\end{environment}\n'
     assert source[translator.pos] == ' '
     assert translator.pos == 56
 
 
+def test_do_environment():
+    source = '\n    hello\n    \ngoodbye'
+    translator = prepTranslator(source)
+    res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
+    assert res == '\\begin{test}\n    hello\n    \n\\end{test}'
+    assert source[translator.pos] == 'g'
+
+
+def test_do_environment_args():
+    source = '\n    hello\n    \ngoodbye'
+    translator = prepTranslator(source)
+    res = translator.do_environment(Environment('test', lambda b, a: '\\begin{test}\\textbf{%s}%s\\end{test}' % (a, b), '!'), [Arg('arg1')], '', 0)
+    assert res == '\\begin{test}\\textbf{arg1}\n    hello\n    \n\\end{test}'
+    assert source[translator.pos] == 'g'
+
+
+def test_do_environment_bad():
+    source = '\nhello\n\ngoodbye'
+    translator = prepTranslator(source)
+    with pytest.raises(TranslationError) as excinfo:
+        translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
+    assert 'indented block on the following line' in excinfo.value.msg
+
+
 def test_do_environment_nested():
     source = '\n    hello\n    \\environment:\n        nested\ngoodbye'
-    translator = Translator(source)
-    translator.indent_str = '    '
+    translator = prepTranslator(source)
     res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
     assert res == '\\begin{test}\n    hello\n    \\begin{environment}\n        nested\n    \\end{environment}\n\\end{test}'
     assert source[translator.pos] == 'g'
@@ -529,8 +505,7 @@ def test_do_environment_nested():
 
 def test_do_environment_nested_end():
     source = '\n    hello\n    \\environment:\n        nested\n'
-    translator = Translator(source)
-    translator.indent_str = '    '
+    translator = prepTranslator(source)
     res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
     assert res == '\\begin{test}\n    hello\n    \\begin{environment}\n        nested\n    \\end{environment}\n\\end{test}'
     assert translator.pos == len(source)
@@ -538,8 +513,7 @@ def test_do_environment_nested_end():
 
 def test_do_environment_nested_nonewline():
     source = '\n    hello\n    \\environment:\n        nested'
-    translator = Translator(source)
-    translator.indent_str = '    '
+    translator = prepTranslator(source)
     res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
     assert res == '\\begin{test}\n    hello\n    \\begin{environment}\n        nested\n    \\end{environment}\n\\end{test}'
     assert translator.pos == len(source)
@@ -547,8 +521,7 @@ def test_do_environment_nested_nonewline():
 
 def test_do_environment_nested_comments():
     source = '\n    hello\n    %IGNORETHIN\\environment:\n    \\realEnvironment:\n        nested\ngoodbye'
-    translator = Translator(source)
-    translator.indent_str = '    '
+    translator = prepTranslator(source)
     res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
     assert res == '\\begin{test}\n    hello\n    %IGNORETHIN\\environment:\n    \\begin{realEnvironment}\n        nested\n    \\end{realEnvironment}\n\\end{test}'
     assert source[translator.pos] == 'g'
@@ -556,46 +529,15 @@ def test_do_environment_nested_comments():
 
 def test_preamble():
     source = '\\documentclass{article}\n===  \n    \nsome text'
-    translator = Translator(source)
-    translator.indent_str = '    '
+    translator = prepTranslator(source)
     res = translator.parse_preamble()
     assert res == '\\documentclass{article}\n'
 
 
 def test_preamble_comments():
     source = '\\documentclass{art%HAHAHAHAHA\n\n\nicle}\n===  \n    \nsome text'
-    translator = Translator(source)
-    translator.indent_str = '    '
+    translator = prepTranslator(source)
     res = translator.parse_preamble()
     assert res == '\\documentclass{art%HAHAHAHAHA\n\n\nicle}\n'
 
 
-def test_parse_block_pysplice():
-    source = '    \\pysplice:\n        print("3")\nother text'
-    translator = Translator(source)
-    translator.indent_str = '    '
-    translator.indent_level = 0
-    res = translator.parse_block()
-    assert res == '    3\n'
-
-def test_do_environment_pysplice():
-    source = '    \\pysplice:\n        print("3")\nother text'
-    translator = Translator(source)
-    translator.indent_str = '    '
-    translator.indent_level = 0
-    res = translator.parse_block()
-    assert res == '    3\n'
-
-def test_do_environment_pysplice():
-    source = '\nprint("3")\n'
-    translator = prepTranslator(source)
-    assert translator.do_environment(environments['pysplice'], [], '', 0) == '3\n'
-
-
-def test_do_environment_pysplice_bad():
-    source = '\nprin("3")\n'
-    translator = prepTranslator(source)
-    with pytest.raises(TranslationError) as excinfo:
-        translator.do_environment(environments['pysplice'], [], '', 0)
-    assert 'Pysplice execution failed.' in excinfo.value.msg
-    assert 'NameError' in excinfo.value.msg

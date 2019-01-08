@@ -271,7 +271,8 @@ def test_docclass_with_normal_latex_begin_end():
     Hello!
     \\end{document}
     ''')
-    assert translate(source) == dedent('''
+    assert translate(source) == dedent(
+    '''
     \\documentclass{article}
     \\begin{document}
     \\begin{document}
@@ -279,3 +280,6 @@ def test_docclass_with_normal_latex_begin_end():
     \\end{document}
     \\end{document}
     ''')
+
+
+
