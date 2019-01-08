@@ -3,14 +3,31 @@
 The document environment is the only one which doesn't need to be indented.
 \section{Some Words}
 Here are some words that are in this section.
-Math is fun, so here's an equation:
+Math is fun, so here's an equation: %hello
 \begin{equation}
     f(x) = x^2 + 3
 \end{equation}
+34
+
+\begin{equation} f(x) = oneLiner\end{equation}
+
 We might want to give our equation a label, like this:
 \begin{equation}\label{eq:cubic}
     f(x) = x^3 - 4x^2 + 2
 \end{equation}
+
+
+
+
+Or start at the \textbf{middle} of a \begin{equation} line(x) = the end\end{equation}
+
+Or over multiple lines:
+\begin{equation}\label{eq:cubic}
+    f(x) = x^3 - 4x^2 + 2
+
+    g(x) = f
+\end{equation}
+
 We can reference our equation with Equation \ref{eq:cubic}.
 This is automatically joined with the non-breaking space \verb{~}.
 \end{document}

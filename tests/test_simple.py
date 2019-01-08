@@ -39,7 +39,7 @@ def test_hello_comments():
     \\end{document}\n''')
 
 
-def test_hello_pysplice():
+def test_pysplice_multiple_lines():
     source = dedent('''
     \\documentclass{article}
     ===
@@ -66,6 +66,8 @@ def test_hello_pysplice():
     \\begin{document}
     Hello?
     hello
+
+
     Bye
     \\end{document}\n''')
 
@@ -205,6 +207,7 @@ def test_multiple_nested_environments():
     Math is fun, so here's an equation:
     \\eq:
         f(x) = x^2 + 3
+
     We might want to give our equation a label, like this:
     \\eq[cubic]:
         f(x) = x^3 - 4x^2 + 2
@@ -224,6 +227,7 @@ def test_multiple_nested_environments():
     \\begin{equation}
         f(x) = x^2 + 3
     \\end{equation}
+    
     We might want to give our equation a label, like this:
     \\begin{equation}\\label{eq:cubic}
         f(x) = x^3 - 4x^2 + 2
@@ -281,5 +285,25 @@ def test_docclass_with_normal_latex_begin_end():
     \\end{document}
     ''')
 
+
+def test_one_liners():
+    source = dedent('''
+    \\docclass{article}
+    ===
+    hi here are some one line equations
+    \\eq:    f(x) = oneLiner(whitespace should be kept)
+    Or start at the \\textbf{middle} of a \\eq:line(x) = the end
+    \\howAboutRandomStuff: hi some stuffz
+    ''')
+
+    assert translate(source) == dedent('''
+    \\documentclass{article}
+    \\begin{document}
+    hi here are some one line equations
+    \\begin{equation}    f(x) = oneLiner(whitespace should be kept)\\end{equation}
+    Or start at the \\textbf{middle} of a \\begin{equation}line(x) = the end\\end{equation}
+    \\begin{howAboutRandomStuff} hi some stuffz\\end{howAboutRandomStuff}
+    \\end{document}
+    ''')
 
 

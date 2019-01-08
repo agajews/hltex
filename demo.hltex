@@ -7,10 +7,24 @@ Math is fun, so here's an equation: %hello
 \eq:
     f(x) = x^2 + 3
 \pysplice:
-    return "34"
+    print("34")
+
+\eq: f(x) = oneLiner
 
 We might want to give our equation a label, like this:
 \eq[cubic]:
     f(x) = x^3 - 4x^2 + 2
+
+
+
+
+Or start at the \textbf{middle} of a \eq: line(x) = the end
+
+Or over multiple lines:
+\eq[cubic]:
+    f(x) = x^3 - 4x^2 + 2
+
+    g(x) = f
+
 We can reference our equation with Equation \ref{eq:cubic}.
 This is automatically joined with the non-breaking space \verb{~}.

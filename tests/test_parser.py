@@ -385,8 +385,8 @@ def test_do_command_multiple():
 def test_parse_block():
     source = '\n    hello\n    \ngoodbye'
     translator = prepTranslator(source)
-    assert translator.parse_block() == '\n    hello\n    \n'
-    assert source[translator.pos] == 'g'
+    assert translator.parse_block() == '\n    hello\n'
+    assert source[translator.pos] == ' '
 
 
 def test_parse_block_document():
@@ -399,23 +399,23 @@ def test_parse_block_document():
 def test_parse_block_end():
     source = '\n    hello\n    \n'
     translator = prepTranslator(source)
-    assert translator.parse_block() == '\n    hello\n    \n'
-    assert translator.pos == len(source)
+    assert translator.parse_block() == '\n    hello\n'
+    assert translator.pos == 11
 
 
 def test_parse_block_nested():
     source = '\n        hello\n    \n    goodbye'
     translator = prepTranslator(source, 1)
-    assert translator.parse_block() == '\n        hello\n    \n'
+    assert translator.parse_block() == '\n        hello\n'
     assert source[translator.pos] == ' '
-    assert translator.pos == 20
+    assert translator.pos == 15
 
 
 def test_parse_block_nested_end():
     source = '\n        hello\n    \n    '
     translator = prepTranslator(source, 1)
-    assert translator.parse_block() == '\n        hello\n    \n    '
-    assert translator.pos == len(source)
+    assert translator.parse_block() == '\n        hello\n'
+    assert translator.pos == 15
 
 
 def test_parse_block_raw_with_indent():
@@ -475,16 +475,16 @@ def test_do_environment():
     source = '\n    hello\n    \ngoodbye'
     translator = prepTranslator(source)
     res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
-    assert res == '\\begin{test}\n    hello\n    \n\\end{test}'
-    assert source[translator.pos] == 'g'
+    assert res == '\\begin{test}\n    hello\n\\end{test}'
+    assert source[translator.pos] == ' '
 
 
 def test_do_environment_args():
     source = '\n    hello\n    \ngoodbye'
     translator = prepTranslator(source)
     res = translator.do_environment(Environment('test', lambda b, a: '\\begin{test}\\textbf{%s}%s\\end{test}' % (a, b), '!'), [Arg('arg1')], '', 0)
-    assert res == '\\begin{test}\\textbf{arg1}\n    hello\n    \n\\end{test}'
-    assert source[translator.pos] == 'g'
+    assert res == '\\begin{test}\\textbf{arg1}\n    hello\n\\end{test}'
+    assert source[translator.pos] == ' '
 
 
 def test_do_environment_bad():
@@ -541,3 +541,9 @@ def test_preamble_comments():
     assert res == '\\documentclass{art%HAHAHAHAHA\n\n\nicle}\n'
 
 
+def test_parse_block_verbatim():
+    source = '\n\\verbatim:\n    hiiminverbatim\n    \\pysplice:\n        this should be ignored\n    \\eq{ok}: f(x)\n    this too\n'
+    translator = prepTranslator(source, -1)
+    res = translator.parse_block()
+    assert res == '\n\\begin{verbatim}\n    hiiminverbatim\n    \\pysplice:\n        this should be ignored\n    \\eq{ok}: f(x)\n    this too\n\\end{verbatim}\n'
+    

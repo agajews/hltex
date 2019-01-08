@@ -79,8 +79,8 @@ def latex_cmd(name, *args):
     return '\\%s%s' % (name, unresolve_args(args))
 
 
-def latex_env(name, before='', body='', after='', args=''):
-    return '\\begin{%s}%s%s%s%s\\end{%s}' % (name, args, before, body, after, name)
+def latex_env(name, before='', body='', after='', args='', post_env=''):
+    return '\\begin{%s}%s%s%s%s\\end{%s}%s' % (name, args, before, body, after, name, post_env)
 
 
 def translate_docclass(opts, arg):
@@ -132,9 +132,13 @@ def translate_pysplice(body):
     return result['stdout'].decode('utf-8')
 
 
+def translate_verbatim(body):
+    return latex_env('verbatim', body=body)
+
 environments = {
     'eq': Environment('eq', translate_eq, params='?'),
-    'pysplice': Environment('pysplice', translate_pysplice, is_raw=True)
+    'pysplice': Environment('pysplice', translate_pysplice, is_raw=True),
+    'verbatim': Environment('verbatim', translate_verbatim, is_raw=True)
 }
 
 
@@ -407,11 +411,10 @@ class Translator:
         precondition: `self.pos` is at the first character after the colon
             (e.g. a newline, but also possibly some other whitespace or a non-alph character for one-liners)
         postcondition:
-            for one-liner environments, `self.pos` is at the newline at the end of the line
+            for one-liner environments, `self.pos` is at the start of the next line
                 or at `len(self.text)` if there isn't a trailing newline
-            for block environments, `self.pos` is at the first non-whitespace character
-                on the (dedented) line following the block, or at `len(self.text)` if
-                the block is at the end of the file
+            for block environments, `self.pos` is at the start of the next line after the block, or at `len(self.text)` if
+                the block is at the end of the file.
         errors:
             if the line opening the environment is empty after the colon, but the following
                 line isn't indented and the environment isn't the first `document` environment
@@ -422,23 +425,24 @@ class Translator:
         '''
         is_raw = isinstance(environment, Environment) and environment.is_raw
 
+        body_start = self.pos
         self.parse_while(iswhitespace)
         if self.text[self.pos] == '\n':
             body = self.parse_block(is_raw=is_raw)
             if outer_indent > 0:
                 body += self.indent_str * outer_indent
         else:
+            # For one-liners, we keep the whitespace we've parsed over
             # TODO: check for \\ to support hltex commands in a one-liner
-            body_start = self.pos
             body_end = self.text.find('\n', self.pos)
             if body_end == -1:
                 body_end = len(self.text)
-            self.pos = body_end
             body = self.text[body_start:body_end]
+            self.pos = body_end + 1  # skip over the end line
         if isinstance(environment, Environment):
             return environment.translate(body, args)
         else:
-            return latex_env(environment, body=body, args=argstr)
+            return latex_env(environment, body=body, args=argstr, post_env='\n')
 
 
     def parse_preamble(self):
@@ -488,7 +492,7 @@ class Translator:
         self.indent_level = -1  # to simulate document block being indented as if it's a command
         body = self.parse_block()
 
-        return latex_env("document", '', body, '', '') + '\n'
+        return latex_env("document", '', body, '', '', '\n')
 
     def parse_block(self, is_raw=False):
         # TODO: can this be broken up into smaller methods?
@@ -527,6 +531,7 @@ class Translator:
                 break
 
             if self.text[self.pos] == '\n':
+                prev_line_end = self.pos
                 self.parse_empty()
                 line_start = self.pos
                 indent_level = self.calc_indent_level()
@@ -535,9 +540,13 @@ class Translator:
                     self.error('Invalid indentation not following the opening of an environment')            
 
                 if indent_level <= prev_block_indent:  # unindent, end block
-                    body += self.text[token_start:line_start]
+                    # save the white space for outside the environment
+                    self.pos = prev_line_end + 1
+                    body += self.text[token_start:self.pos]
                     self.indent_level = indent_level
                     return body
+
+
 
             elif self.text[self.pos] == '\\':
                 # print('Found escape at pos {}'.format(self.pos))
