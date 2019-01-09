@@ -553,7 +553,7 @@ class Translator:
         returns: the substring containing everything from the original value of `self.pos`
             at calltime through and including the newline before the next non-whitespace
             line, or through the end of the file if the block is at the end of the file
-            
+
             If is_raw is True, then return the block of text unmodified
         '''
         body = ''
@@ -561,7 +561,7 @@ class Translator:
         token_start = self.pos
         self.parse_empty()
 
-        
+
         # print('finished parsing empty')
         indent_level = self.calc_indent_level(not is_raw)
         # print(indent_level)
@@ -592,7 +592,7 @@ class Translator:
                 indent_level = self.calc_indent_level(not is_raw)
                 # print(indent_level)
                 if not is_raw and indent_level > self.indent_level:
-                    self.error('Invalid indentation not following the opening of an environment')            
+                    self.error('Invalid indentation not following the opening of an environment')
 
                 if indent_level <= prev_block_indent:  # unindent, end block
                     # save the white space for outside the environment
@@ -645,6 +645,9 @@ class Translator:
             body += '\n'
         return body
 
+    def get_line(self):
+        return self.text.count('\n', 0, self.pos)
+
     def translate(self):
         # import pdb;pdb.set_trace()
         try:
@@ -652,7 +655,14 @@ class Translator:
             self.indent_level = -1  # to simulate document block being indented as if it's a command
             return self.parse_block()
         except TranslationError as e:
-            self.print_error(e.msg)
+            self.print_error(e.msg, self.get_line)
+
+    def translate_internal(self):
+        try:
+            self.indent_level = -1  # to simulate document block being indented as if it's a command
+            return {'text': self.parse_block(), 'error': None, 'line': None}
+        except TranslationError as e:
+            return {'text': None, 'error': e.msg, 'line': self.get_line()}
 
     def error(self, msg):
         raise TranslationError(msg)
@@ -660,9 +670,10 @@ class Translator:
     def warn(self, msg):
         warnings.warn(msg)
 
-    def print_error(self, msg):
+    def print_error(self, msg, line):
         ## TODO: prettier errors (line number, another line with ^ pointing to error character, etc.)
-        sys.stderr.write('{} at char {} (next 10 chars: {})'.format(msg, self.pos, self.text[self.pos:self.pos+10]))  # TODO: better errors
+        sys.stderr.write('{} at line {}, char {} (next 10 chars: {})'.format(
+            msg, line, self.pos, self.text[self.pos:self.pos+10]))  # TODO: better errors
 
 
 def prepTranslator(source, indent_level=0):
