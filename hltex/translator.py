@@ -172,7 +172,7 @@ class Translator:
         if not text or text[-1] != '\n':
             text += '\n'
         self.text = text
-        self.preamble = True
+        self.preamble = False
 
     def finished(self):
         assert self.pos <= len(self.text)
@@ -191,14 +191,23 @@ class Translator:
         if self.indent_level != 0 or not self.preamble:
             return False
 
+        # at root level in preamble; lines must start with \ or ===
         token_start = self.pos
         self.parse_empty()
         self.parse_while(iswhitespace)
-        if self.pos+3 <= len(self.text) and self.text[self.pos:self.pos+3] == "===":
-            self.parse_while(lambda c: iswhitespace(c) or c == '=')
+        if self.text[self.pos] == '=':
+            separator_start = self.pos
+            self.parse_while(lambda c: c == '=')
+            if self.pos - separator_start < 3:
+                self.error("Separator indicating start of document must be at least '===' (3 equal signs).")
+
+            self.parse_while(iswhitespace)
             if self.finished() or self.text[self.pos] == '\n':
                 self.preamble = False
                 return True
+
+        elif self.text[self.pos] not in ['\\', '%', '\n']:
+            self.error("Preamble lines must start with \\.")
 
         self.pos = token_start
         return False
@@ -477,6 +486,8 @@ class Translator:
 
         token_start = self.pos
         body = ''
+        post_env = ''
+
         self.parse_while(iswhitespace)
         if self.finished():
             body += self.text[token_start:]
@@ -515,14 +526,16 @@ class Translator:
                         token_start = self.pos
                                 
                     elif self.text[self.pos] == '%':  # include the comments but ignore any \\
-                        self.parse_comments()
                         body += self.text[token_start:self.pos]
+                        comment_start = self.pos
+                        self.parse_comments()
+                        post_env = self.text[comment_start:self.pos]  # put these after \end{...} on the same line
                         break
 
         if isinstance(environment, Environment):
-            return environment.translate(body, args)
+            return environment.translate(body, args) + post_env
         else:
-            return latex_env(environment, body=body, args=argstr, post_env='\n')
+            return latex_env(environment, body=body, args=argstr, post_env=post_env+'\n')
 
 
     def parse_block(self, is_raw=False):
@@ -635,6 +648,7 @@ class Translator:
     def translate(self):
         # import pdb;pdb.set_trace()
         try:
+            self.preamble = True
             self.indent_level = -1  # to simulate document block being indented as if it's a command
             return self.parse_block()
         except TranslationError as e:

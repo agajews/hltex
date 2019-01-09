@@ -10,7 +10,7 @@ Math is fun, so here's an equation: %hello
 \pysplice:
     print("34")
 
-\eq: f(x) = oneLiner
+\eq: f(x) = \textbf{one}Liner with inline commands % even in-line comments!
 
 We might want to give our equation a label, like this:
 \eq[cubic]:

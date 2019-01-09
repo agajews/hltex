@@ -535,22 +535,6 @@ def test_do_environment_nested_comments():
     assert source[translator.pos] == 'g'
 
 
-# def test_preamble():
-#     source = '\\documentclass{article}\n===  \n    \nsome text'
-#     translator = prepTranslator(source)
-#     res = translator.parse_preamble()
-#     print(res)
-#assert res == '\\documentclass{article}\n'
-
-
-# def test_preamble_comments():
-#     source = '\\documentclass{art%HAHAHAHAHA\n\n\nicle}\n===  \n    \nsome text'
-#     translator = prepTranslator(source)
-#     res = translator.parse_preamble()
-#     print(res)
-#assert res == '\\documentclass{art%HAHAHAHAHA\n\n\nicle}\n'
-
-
 def test_parse_block_verbatim():
     source = '\n\\verbatim:\n    hiiminverbatim\n    \\pysplice:\n        this should be ignored\n    \\eq{ok}: f(x)\n    this too\n'
     translator = prepTranslator(source, -1)
@@ -562,6 +546,7 @@ def test_parse_block_verbatim():
 def test_document_begin():
     source = '\n===\n'
     translator = prepTranslator(source)
+    translator.preamble = True
     assert translator.check_for_document_begin()
     assert translator.pos == len(source) - 1
 
@@ -569,14 +554,41 @@ def test_document_begin():
 def test_document_begin_extra_padding():
     source = '\n\n\n   ===  \n'
     translator = prepTranslator(source)
+    translator.preamble = True
     assert translator.check_for_document_begin()
     assert translator.pos == len(source) - 1
+
+def test_document_begin_comments():
+    source = '\n\n\n   %=====  \n'
+    translator = prepTranslator(source)
+    translator.preamble = True
+    assert translator.check_for_document_begin() == False
+    assert translator.pos == 0
+
 
 def test_document_begin_extra_equals_and_padding():
     source = '\n\n =======================  \n'
     translator = prepTranslator(source)
+    translator.preamble = True
     assert translator.check_for_document_begin()
     assert translator.pos == len(source) - 1
+
+def test_document_begin_bad_separator():
+    source = '\n\n =  \n'
+    translator = prepTranslator(source)
+    translator.preamble = True
+    with pytest.raises(TranslationError) as excinfo:
+        translator.check_for_document_begin()
+    assert "must be at least '==='" in excinfo.value.msg
+
+
+def test_document_begin_bad_lines():
+    source = '\n\n 1341  \n'
+    translator = prepTranslator(source)
+    translator.preamble = True
+    with pytest.raises(TranslationError) as excinfo:
+        translator.check_for_document_begin()
+    assert "Preamble lines must start with" in excinfo.value.msg
 
 
 def test_one_line_environment():
@@ -610,3 +622,11 @@ def test_one_line_environment_with_hltex_commands():
     res = translator.parse_block()
     print(res)
     assert res == '\n\\begin{equation}    f(x) = \\documentclass{mydoc}wow \\end{equation}\n'
+
+
+def test_one_line_environment_with_comments():
+    source = '\n\\eq:    f(x) = %\\docclass{acomment} \n'
+    translator = prepTranslator(source, -1)
+    res = translator.parse_block()
+    print(res)
+    assert res == '\n\\begin{equation}    f(x) = \\end{equation}%\\docclass{acomment} \n'
