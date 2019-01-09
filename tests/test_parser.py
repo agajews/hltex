@@ -527,18 +527,18 @@ def test_do_environment_nested_comments():
     assert source[translator.pos] == 'g'
 
 
-def test_preamble():
-    source = '\\documentclass{article}\n===  \n    \nsome text'
-    translator = prepTranslator(source)
-    res = translator.parse_preamble()
-    assert res == '\\documentclass{article}\n'
+# def test_preamble():
+#     source = '\\documentclass{article}\n===  \n    \nsome text'
+#     translator = prepTranslator(source)
+#     res = translator.parse_preamble()
+#     assert res == '\\documentclass{article}\n'
 
 
-def test_preamble_comments():
-    source = '\\documentclass{art%HAHAHAHAHA\n\n\nicle}\n===  \n    \nsome text'
-    translator = prepTranslator(source)
-    res = translator.parse_preamble()
-    assert res == '\\documentclass{art%HAHAHAHAHA\n\n\nicle}\n'
+# def test_preamble_comments():
+#     source = '\\documentclass{art%HAHAHAHAHA\n\n\nicle}\n===  \n    \nsome text'
+#     translator = prepTranslator(source)
+#     res = translator.parse_preamble()
+#     assert res == '\\documentclass{art%HAHAHAHAHA\n\n\nicle}\n'
 
 
 def test_parse_block_verbatim():

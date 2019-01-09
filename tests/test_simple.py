@@ -318,3 +318,32 @@ def test_broken():
     \\end{document}\n''')
 
 
+
+def test_commands_in_preamble():
+    source = '\\eq: f = \\textbf{bold text}\n===\nhello'
+    assert translate(source) == '''\\begin{equation} f = \\textbf{bold text}\\end{equation}\n
+\\begin{document}\nhello\n\\end{document}\n'''
+
+
+
+def test_pysplice_in_preamble():
+    source = '''\\docclass{article}
+\\pysplice:\n    print('\\n'.join(['\\\\newcommand{\\cal%s}{\\mathcal{%s}}'
+                         % (c, c) for c in ['F', 'G', 'H', 'I', 'D', 'B']]))
+\\title{a Title}
+===
+hello
+'''
+    assert translate(source) == dedent(
+    '''    \\documentclass{article}
+    \\newcommand{\\calF}{\\mathcal{F}}
+    \\newcommand{\\calG}{\\mathcal{G}}
+    \\newcommand{\\calH}{\\mathcal{H}}
+    \\newcommand{\\calI}{\\mathcal{I}}
+    \\newcommand{\\calD}{\\mathcal{D}}
+    \\newcommand{\\calB}{\\mathcal{B}}
+    \\title{a Title}
+    \\begin{document}
+    hello
+    \\end{document}
+    ''')

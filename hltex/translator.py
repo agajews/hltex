@@ -167,6 +167,7 @@ class Translator:
 
         self.pos = 0
         self.text = text
+        self.preamble = True
 
     def finished(self):
         return self.pos == len(self.text)
@@ -174,11 +175,29 @@ class Translator:
     def not_finished(self):
         return not self.finished()
 
-    def at_end_of_preamble(self):
+    def check_for_document_begin(self):
         '''
-        Returns true if it's at the start of ===
+        precondition: at previous end-of-line or start of document if no preamble
+        postcondition: self.pos remain the same UNLESS we enter the document from preamble,
+            in which case it's at the next new line
+        Checks for ===, the separator between preamble and document
         '''
-        return self.pos+3 <= len(self.text) and self.text[self.pos:self.pos+3] == "==="
+        if self.indent_level != 0 or not self.preamble:
+            return False
+
+        token_start = self.pos
+        self.parse_empty()
+        if self.pos+3 <= len(self.text) and self.text[self.pos:self.pos+3] == "===":
+            self.pos += 3
+            self.parse_while(iswhitespace)
+            if self.finished() or self.text[self.pos] == '\n':
+                self.preamble = False
+                return True
+            #print(self.text[self.pos-3:self.pos+10])
+
+        #print(self.text[token_start: self.pos+3])
+        self.pos = token_start
+        return False
 
     def parse_while(self, pred):
         '''
@@ -206,7 +225,7 @@ class Translator:
         if not (all(s == ' ' for s in indent) or all(s == '\t' for s in indent)):
             self.error('Invalid indentation; must be all spaces or all tabs')  # TODO: more verbose errors
 
-    def level_of_indent(self, indent):
+    def level_of_indent(self, indent, validate=True):
         '''
         indent: str
         precondition: `self.indent_str` is not None
@@ -214,13 +233,13 @@ class Translator:
         returns: the whole number of non-overlapping `self.indent_str` in `indent`
             (i.e. the indentation level where `self.indent_str` is the base unit of indentation)
         '''
-        if not len(indent) % len(self.indent_str) == 0:
+        if validate and not len(indent) % len(self.indent_str) == 0:
             self.error('Indentation must be in multiples of the base indentation `{}`'.format(
                 self.indent_str))
         return len(indent) // len(self.indent_str)
 
-    def calc_indent_level(self):
-        assert self.pos == 0 or self.finished() or isnewline(self.text[self.pos - 1]), "pos: {}, text: {}".format(self.pos, self.text[self.pos-1:self.pos+10])
+    def calc_indent_level(self, validate=True):
+        if validate: assert self.pos == 0 or self.finished() or isnewline(self.text[self.pos - 1]), "pos: {}, text: {}".format(self.pos, self.text[self.pos-1:self.pos+10])
         '''
         precondition: `self.pos` is at the start of a line
         postcondition: `self.pos` is where it started
@@ -233,15 +252,14 @@ class Translator:
         indent = self.text[indent_start:self.pos]
         if len(indent) == 0:
             return 0
-        self.validate_indent(indent)
+        if validate: self.validate_indent(indent)
         if self.indent_str == None:
             self.indent_str = indent
-        indent_level = self.level_of_indent(indent)
-        if self.indent_level == -1 and indent_level != 0:
+        indent_level = self.level_of_indent(indent, validate)
+        if validate and self.indent_level == -1 and indent_level != 0:
             self.error('The document as a whole must not be indented')
-        level = self.level_of_indent(indent)
         self.pos = indent_start
-        return level
+        return indent_level
 
     def parse_empty(self):
         '''
@@ -320,8 +338,31 @@ class Translator:
                     if control_seq in commands:
                         body += self.do_command(commands[control_seq])
                     else:
-                        _, argstr = self.parse_args()
-                        body += '\\' + control_seq + argstr
+                        args, argstr = self.parse_args()
+                        whitespace_start = self.pos
+                        self.parse_while(iswhitespace)
+                        if self.not_finished() and self.text[self.pos] == ':':
+                            self.pos += 1
+                            # print('at environment')
+                            # print('Doing environment `{}`'.format(control_seq))
+                            if control_seq in environments:
+                                environment = environments[control_seq]
+                            else:
+                                environment = control_seq
+
+                            outer_indent = prev_block_indent + 1
+
+                            body += self.do_environment(environment, args, argstr, outer_indent)
+                            if body[-1] != '\n':
+                                body += '\n'
+                            indent_level = self.calc_indent_level()
+                            if indent_level <= prev_block_indent:
+                                self.indent_level = indent_level
+                                return body
+                            token_start = self.pos
+                        else:
+                            body += '\\' + control_seq + argstr + self.text[whitespace_start:self.pos]
+
                         # TODO: issue a warning if the current character is a colon
                     token_start = self.pos
                 elif self.text[self.pos] == close:
@@ -451,57 +492,6 @@ class Translator:
             return latex_env(environment, body=body, args=argstr, post_env='\n')
 
 
-    def parse_preamble(self):
-        '''
-        precondition: at start of document
-        postcondition: first newline after === (self.at_end_of_preamble), about to start document
-        errors:
-            if not all lines before === starts with '\\'
-        returns: the preamble string before ===, ending with `\n`
-        '''
-        assert self.pos == 0
-        body = ''
-
-        while self.not_finished() and not self.at_end_of_preamble():
-            token_start = self.pos
-            self.parse_while(str.isspace)
-            if self.at_end_of_preamble():
-                break
-
-            if self.text[self.pos] == '%':
-                self.parse_comments()
-                continue
-
-            if self.text[self.pos] != '\\':
-                self.error("Preamble commands need to start with \\")
-
-            # precondition: at start of a command
-            escape_start = self.pos
-            self.pos += 1
-            control_seq = self.parse_control_seq()
-            # print(control_seq)
-            body += self.text[token_start:escape_start]
-            if control_seq in commands:
-                body += self.do_command(commands[control_seq])
-            else:
-                _, argstr = self.parse_args()
-                body += '\\' + control_seq + argstr
-
-        if self.finished():
-            self.error("Missing main document body")
-
-        assert self.at_end_of_preamble()
-
-        self.parse_while(lambda c: c == '=')
-        self.parse_while(iswhitespace)
-        return body + '\n'
-
-    def parse_document(self):
-        self.indent_level = -1  # to simulate document block being indented as if it's a command
-        body = self.parse_block()
-
-        return latex_env("document", '', body, '', '', '\n')
-
     def parse_block(self, is_raw=False):
         # TODO: can this be broken up into smaller methods?
         '''
@@ -524,16 +514,23 @@ class Translator:
         # print('starting block at {}, `{}`'.format(self.pos, self.text[self.pos:self.pos+10]))
         token_start = self.pos
         self.parse_empty()
+
+        
         # print('finished parsing empty')
-        indent_level = self.calc_indent_level()
+        indent_level = self.calc_indent_level(not is_raw)
         # print(indent_level)
-        if indent_level != self.indent_level + 1:
+        if not is_raw and indent_level != self.indent_level + 1:
             self.error('Indent Error. You must either put the body of an environment all on one line, or on an indented block on the following line')
 
         prev_block_indent = self.indent_level
         self.indent_level = indent_level
 
         while self.not_finished():
+            # precondition: start of a line
+            if self.check_for_document_begin():
+                self.indent_level = -1
+                return body + '\n' + latex_env("document", '', self.parse_block(), '', '', '\n')
+
             self.parse_until(lambda c: c == '\n' or (not is_raw and (c == '\\' or c == '%')))
             if self.finished():
                 break
@@ -542,7 +539,7 @@ class Translator:
                 prev_line_end = self.pos
                 self.parse_empty()
                 line_start = self.pos
-                indent_level = self.calc_indent_level()
+                indent_level = self.calc_indent_level(not is_raw)
                 # print(indent_level)
                 if not is_raw and indent_level > self.indent_level:
                     self.error('Invalid indentation not following the opening of an environment')            
@@ -581,7 +578,7 @@ class Translator:
                         body += self.do_environment(environment, args, argstr, outer_indent)
                         if body[-1] != '\n':
                             body += '\n'
-                        indent_level = self.calc_indent_level()
+                        indent_level = self.calc_indent_level(not is_raw)
                         if indent_level <= prev_block_indent:
                             self.indent_level = indent_level
                             return body
@@ -601,8 +598,8 @@ class Translator:
     def translate(self):
         # import pdb;pdb.set_trace()
         try:
-            body = self.parse_preamble()
-            return body + self.parse_document()
+            self.indent_level = -1  # to simulate document block being indented as if it's a command
+            return self.parse_block()
         except TranslationError as e:
             self.print_error(e.msg)
 
