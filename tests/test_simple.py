@@ -227,7 +227,7 @@ def test_multiple_nested_environments():
     \\begin{equation}
         f(x) = x^2 + 3
     \\end{equation}
-    
+
     We might want to give our equation a label, like this:
     \\begin{equation}\\label{eq:cubic}
         f(x) = x^3 - 4x^2 + 2
@@ -305,5 +305,16 @@ def test_one_liners():
     \\begin{howAboutRandomStuff} hi some stuffz\\end{howAboutRandomStuff}
     \\end{document}
     ''')
+
+
+def test_broken():
+    source = '\\docclass{article}\n\\title{HLTeX Demo}\n\\author{Alex, Wanqi}\n===\n\\section{Introduction}'
+    assert translate(source) == dedent('''
+    \\documentclass{article}
+    \\title{HLTeX Demo}
+    \\author{Alex, Wanqi}
+    \\begin{document}
+    \\section{Introduction}
+    \\end{document}''')
 
 
