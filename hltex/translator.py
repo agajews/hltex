@@ -595,22 +595,23 @@ class Translator:
             body += '\n'
         return body
 
+    def get_line(self):
+        return self.text.count('\n', 0, self.pos)
+
     def translate(self):
         # import pdb;pdb.set_trace()
         try:
             self.indent_level = -1  # to simulate document block being indented as if it's a command
             return self.parse_block()
         except TranslationError as e:
-            line = self.text.count('\n', 0, self.pos)
-            self.print_error(e.msg, line)
+            self.print_error(e.msg, self.get_line)
 
     def translate_internal(self):
         try:
             self.indent_level = -1  # to simulate document block being indented as if it's a command
             return {'text': self.parse_block(), 'error': None, 'line': None}
         except TranslationError as e:
-            line = self.text.count('\n', 0, self.pos)
-            return {'text': None, 'error': e.msg, 'line': line}
+            return {'text': None, 'error': e.msg, 'line': self.get_line()}
 
     def error(self, msg):
         raise TranslationError(msg)
