@@ -1,4 +1,5 @@
 \documentclass{article}
+\eq: line(x) = the end
 ===
 The document environment is the only one which doesn't need to be indented.
 \section{Some Words}

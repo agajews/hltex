@@ -307,35 +307,46 @@ def test_one_liners():
     ''')
 
 
-def test_broken():
-    source = '\\docclass{article}\n\\title{HLTeX Demo}\n\\author{Alex, Wanqi}\n===\n\\section{Introduction}'
+def test_used_to_be_broken():
+    source = '\n\\docclass{article}\n\\title{HLTeX Demo}\n\\author{Alex, Wanqi}\n===\n\\section{Introduction}'
     assert translate(source) == dedent(
-    '''    \\documentclass{article}
+    '''
+    \\documentclass{article}
     \\title{HLTeX Demo}
     \\author{Alex, Wanqi}
     \\begin{document}
     \\section{Introduction}
-    \\end{document}\n''')
+    \\end{document}
+    ''')
 
 
 
 def test_commands_in_preamble():
-    source = '\\eq: f = \\textbf{bold text}\n===\nhello'
-    assert translate(source) == '''\\begin{equation} f = \\textbf{bold text}\\end{equation}\n
-\\begin{document}\nhello\n\\end{document}\n'''
+    source = '\n\\eq: f = \\textbf{bold text}\n===\nhello'
+    assert translate(source) == dedent(
+    '''
+    \\begin{equation} f = \\textbf{bold text}\\end{equation}
+    \\begin{document}
+    hello
+    \\end{document}
+    ''')
 
 
 
 def test_pysplice_in_preamble():
-    source = '''\\docclass{article}
-\\pysplice:\n    print('\\n'.join(['\\\\newcommand{\\cal%s}{\\mathcal{%s}}'
+    source = dedent(
+    '''
+    \\docclass{article}
+    \\pysplice:
+        print('\\n'.join(['\\\\newcommand{\\cal%s}{\\mathcal{%s}}'
                          % (c, c) for c in ['F', 'G', 'H', 'I', 'D', 'B']]))
-\\title{a Title}
-===
-hello
-'''
+    \\title{a Title}
+    ===
+    hello
+    ''')
     assert translate(source) == dedent(
-    '''    \\documentclass{article}
+    '''
+    \\documentclass{article}
     \\newcommand{\\calF}{\\mathcal{F}}
     \\newcommand{\\calG}{\\mathcal{G}}
     \\newcommand{\\calH}{\\mathcal{H}}

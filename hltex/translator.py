@@ -1,5 +1,6 @@
 import sys
 from textwrap import dedent
+import warnings
 epicbox = None
 
 
@@ -156,8 +157,8 @@ def iswhitespace(char):
     return str.isspace(char) and not isnewline(char)
 
 
-def is_opt_end(char):
-    return char in '#$%^&_{}[]~\\'
+# def is_opt_end(char):
+#     return char in '#$%^&_{}[]~\\'
 
 
 class Translator:
@@ -166,10 +167,15 @@ class Translator:
         self.indent_level = 0
 
         self.pos = 0
+        # we will often increment pos by 1 when we expect a control seq/block to end
+        # this prevents us from going out of bounds (in general it's a good idea to end file with \n)
+        if not text or text[-1] != '\n':
+            text += '\n'
         self.text = text
         self.preamble = True
 
     def finished(self):
+        assert self.pos <= len(self.text)
         return self.pos == len(self.text)
 
     def not_finished(self):
@@ -177,7 +183,7 @@ class Translator:
 
     def check_for_document_begin(self):
         '''
-        precondition: at previous end-of-line or start of document if no preamble
+        precondition: at previous end-of-line
         postcondition: self.pos remain the same UNLESS we enter the document from preamble,
             in which case it's at the next new line
         Checks for ===, the separator between preamble and document
@@ -187,15 +193,13 @@ class Translator:
 
         token_start = self.pos
         self.parse_empty()
+        self.parse_while(iswhitespace)
         if self.pos+3 <= len(self.text) and self.text[self.pos:self.pos+3] == "===":
-            self.pos += 3
-            self.parse_while(iswhitespace)
+            self.parse_while(lambda c: iswhitespace(c) or c == '=')
             if self.finished() or self.text[self.pos] == '\n':
                 self.preamble = False
                 return True
-            #print(self.text[self.pos-3:self.pos+10])
 
-        #print(self.text[token_start: self.pos+3])
         self.pos = token_start
         return False
 
@@ -229,6 +233,8 @@ class Translator:
         '''
         indent: str
         precondition: `self.indent_str` is not None
+        validate: False if we don't care about indentation correctness, e.g. if we're in a raw block
+
         errors: if `len(indent)` isn't a multiple of `len(self.indent_str)`
         returns: the whole number of non-overlapping `self.indent_str` in `indent`
             (i.e. the indentation level where `self.indent_str` is the base unit of indentation)
@@ -243,6 +249,7 @@ class Translator:
         '''
         precondition: `self.pos` is at the start of a line
         postcondition: `self.pos` is where it started
+        validate: False if we don't care about indentation correctness, e.g. if we're in a raw block
         errors: if the current line isn't well-indented (e.g. if it is more than one
             deeper than the current level)
         returns: the indentation level of the current line, in terms of `self.indent_str` units
@@ -267,7 +274,6 @@ class Translator:
             after the preceeding newline), or at `len(self.text)` if there isn't a
             next non-whitespace line
         '''
-        # print('parsing empty')
         while self.not_finished():
             # print(self.pos)
             line_end = self.text.find('\n', self.pos)
@@ -469,23 +475,50 @@ class Translator:
         '''
         is_raw = isinstance(environment, Environment) and environment.is_raw
 
-        body_start = self.pos
+        token_start = self.pos
+        body = ''
         self.parse_while(iswhitespace)
         if self.finished():
-            body = self.text[body_start:]
+            body += self.text[token_start:]
         else:
             if self.text[self.pos] == '\n':
-                body = self.parse_block(is_raw=is_raw)
+                body += self.parse_block(is_raw=is_raw)
                 if outer_indent > 0:
                     body += self.indent_str * outer_indent
             else:
-                # For one-liners, we keep the whitespace we've parsed over
+                # For one-liners, we keep the whitespace we've parsed over but skip the \n at the end
                 # TODO: check for \\ to support hltex commands in a one-liner
-                body_end = self.text.find('\n', self.pos)
-                if body_end == -1:
-                    body_end = len(self.text)
-                body = self.text[body_start:body_end]
-                self.pos = body_end + 1  # skip over the end line
+                while self.not_finished():
+                    self.parse_until(lambda c: c in ['\n', '\\', '%'])
+                    if self.finished() or self.text[self.pos] == '\n':
+                        body += self.text[token_start:self.pos]
+                        self.pos += 1  # skip over the end line
+                        break
+                    
+                    elif self.text[self.pos] == '\\':
+                        escape_start = self.pos
+                        self.pos += 1
+                        control_seq = self.parse_control_seq()
+
+                        body += self.text[token_start:escape_start]
+                        if control_seq in commands:
+                            body += self.do_command(commands[control_seq])
+                        else:
+                            args, argstr = self.parse_args()
+                            whitespace_start = self.pos
+                            self.parse_while(iswhitespace)
+                            if self.not_finished() and self.text[self.pos] == ':':
+                                self.warn('Nested environments not supported inside oneline environments.')
+                            
+                            body += '\\' + control_seq + argstr + self.text[whitespace_start:self.pos]
+                        
+                        token_start = self.pos
+                                
+                    elif self.text[self.pos] == '%':  # include the comments but ignore any \\
+                        self.parse_comments()
+                        body += self.text[token_start:self.pos]
+                        break
+
         if isinstance(environment, Environment):
             return environment.translate(body, args)
         else:
@@ -529,7 +562,11 @@ class Translator:
             # precondition: start of a line
             if self.check_for_document_begin():
                 self.indent_level = -1
-                return body + '\n' + latex_env("document", '', self.parse_block(), '', '', '\n')
+                if not body or body[-1] != '\n':
+                    body += '\n'
+
+                # Maybe: two lines separating preamble and main?
+                return body + latex_env("document", '', self.parse_block(), '', '', '\n')
 
             self.parse_until(lambda c: c == '\n' or (not is_raw and (c == '\\' or c == '%')))
             if self.finished():
@@ -605,6 +642,9 @@ class Translator:
 
     def error(self, msg):
         raise TranslationError(msg)
+
+    def warn(self, msg):
+        warnings.warn(msg)
 
     def print_error(self, msg):
         ## TODO: prettier errors (line number, another line with ^ pointing to error character, etc.)
