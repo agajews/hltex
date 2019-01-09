@@ -309,12 +309,12 @@ def test_one_liners():
 
 def test_broken():
     source = '\\docclass{article}\n\\title{HLTeX Demo}\n\\author{Alex, Wanqi}\n===\n\\section{Introduction}'
-    assert translate(source) == dedent('''
-    \\documentclass{article}
+    assert translate(source) == dedent(
+    '''    \\documentclass{article}
     \\title{HLTeX Demo}
     \\author{Alex, Wanqi}
     \\begin{document}
     \\section{Introduction}
-    \\end{document}''')
+    \\end{document}\n''')
 
 

@@ -355,6 +355,9 @@ class Translator:
         nargs = 0
         while True:
             self.parse_while(iswhitespace)
+            if self.finished():
+                break
+
             if self.text[self.pos] == '{':  # TODO: make this less repetitive?
                 self.pos += 1
                 arg = self.parse_arg(close='}', required=True)
@@ -427,18 +430,21 @@ class Translator:
 
         body_start = self.pos
         self.parse_while(iswhitespace)
-        if self.text[self.pos] == '\n':
-            body = self.parse_block(is_raw=is_raw)
-            if outer_indent > 0:
-                body += self.indent_str * outer_indent
+        if self.finished():
+            body = self.text[body_start:]
         else:
-            # For one-liners, we keep the whitespace we've parsed over
-            # TODO: check for \\ to support hltex commands in a one-liner
-            body_end = self.text.find('\n', self.pos)
-            if body_end == -1:
-                body_end = len(self.text)
-            body = self.text[body_start:body_end]
-            self.pos = body_end + 1  # skip over the end line
+            if self.text[self.pos] == '\n':
+                body = self.parse_block(is_raw=is_raw)
+                if outer_indent > 0:
+                    body += self.indent_str * outer_indent
+            else:
+                # For one-liners, we keep the whitespace we've parsed over
+                # TODO: check for \\ to support hltex commands in a one-liner
+                body_end = self.text.find('\n', self.pos)
+                if body_end == -1:
+                    body_end = len(self.text)
+                body = self.text[body_start:body_end]
+                self.pos = body_end + 1  # skip over the end line
         if isinstance(environment, Environment):
             return environment.translate(body, args)
         else:
@@ -464,10 +470,12 @@ class Translator:
 
             if self.text[self.pos] == '%':
                 self.parse_comments()
+                continue
 
             if self.text[self.pos] != '\\':
                 self.error("Preamble commands need to start with \\")
 
+            # precondition: at start of a command
             escape_start = self.pos
             self.pos += 1
             control_seq = self.parse_control_seq()
@@ -546,8 +554,6 @@ class Translator:
                     self.indent_level = indent_level
                     return body
 
-
-
             elif self.text[self.pos] == '\\':
                 # print('Found escape at pos {}'.format(self.pos))
                 escape_start = self.pos
@@ -561,7 +567,7 @@ class Translator:
                     args, argstr = self.parse_args()
                     whitespace_start = self.pos
                     self.parse_while(iswhitespace)
-                    if self.text[self.pos] == ':':
+                    if self.not_finished() and self.text[self.pos] == ':':
                         self.pos += 1
                         # print('at environment')
                         # print('Doing environment `{}`'.format(control_seq))
