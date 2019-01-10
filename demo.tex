@@ -1,5 +1,13 @@
 \documentclass{article}
 \begin{equation} line(x) = the end\end{equation}
+\newcommand{\calF}{\mathcal{F}}
+\newcommand{\calG}{\mathcal{G}}
+\newcommand{\calH}{\mathcal{H}}
+\newcommand{\calI}{\mathcal{I}}
+\newcommand{\calD}{\mathcal{D}}
+\newcommand{\calB}{\mathcal{B}}
+
+\title{a Title}
 \begin{document}
 The document environment is the only one which doesn't need to be indented.
 \section{Some Words}
@@ -10,6 +18,7 @@ Math is fun, so here's an equation: %hello
 \end{equation}
 34
 
+
 \begin{equation} f(x) = \textbf{one}Liner with inline commands \end{equation}% even in-line comments!
 
 We might want to give our equation a label, like this:
@@ -18,16 +27,49 @@ We might want to give our equation a label, like this:
 \end{equation}
 
 
-
+\begin{equation}
+    random me
+\end{equation}
+you
 
 Or start at the \textbf{middle} of a \begin{equation} line(x) = the end\end{equation}
 
 Or over multiple lines:
 \begin{equation}\label{eq:cubic}
     f(x) = x^3 - 4x^2 + 2
+    \begin{equation}
+        hi
+
+        there
+        meeee  % woah
+        me
+    \end{equation}
 
     g(x) = f
 \end{equation}
+
+% \itemize:
+%     \eq:
+%         2 nested
+%         \pysplice:
+%             print("2\n2\n2\n2")
+%         \eq:
+%             \pysplice:
+%                 print("3\n3\n3\n3")
+%                 print("me too")
+%             \pysplice:
+%                 print("3\n3\n3\n3")
+%             3
+%             \eq:
+%                 \eq:
+%                     \pysplice:
+%                         print("5\n5\n5\n5")
+%                     5
+%                 4
+%             \pysplice:
+%                 print("3\n3\n3\n3")
+%         2 nested
+%     1 nested
 
 We can reference our equation with Equation \ref{eq:cubic}.
 This is automatically joined with the non-breaking space \verb{~}.

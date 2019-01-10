@@ -1,5 +1,10 @@
 \documentclass{article}
 \eq: line(x) = the end
+\pysplice:
+    print('\n'.join(['\\newcommand{\cal%s}{\mathcal{%s}}'
+                         % (c, c) for c in ['F', 'G', 'H', 'I', 'D', 'B']]))
+\title{a Title}
+
 ===
 The document environment is the only one which doesn't need to be indented.
 \section{Some Words}
@@ -17,15 +22,46 @@ We might want to give our equation a label, like this:
     f(x) = x^3 - 4x^2 + 2
 
 
-
+\equation:
+    random me
+you
 
 Or start at the \textbf{middle} of a \eq: line(x) = the end
 
 Or over multiple lines:
 \eq[cubic]:
     f(x) = x^3 - 4x^2 + 2
+    \eq:
+        hi
+
+        there
+        meeee  % woah
+        me
 
     g(x) = f
+
+% \itemize:
+%     \eq:
+%         2 nested
+%         \pysplice:
+%             print("2\n2\n2\n2")
+%         \eq:
+%             \pysplice:
+%                 print("3\n3\n3\n3")
+%                 print("me too")
+%             \pysplice:
+%                 print("3\n3\n3\n3")
+%             3
+%             \eq:
+%                 \eq:
+%                     \pysplice:
+%                         print("5\n5\n5\n5")
+%                     5
+%                 4
+%             \pysplice:
+%                 print("3\n3\n3\n3")
+%         2 nested
+%     1 nested
 
 We can reference our equation with Equation \ref{eq:cubic}.
 This is automatically joined with the non-breaking space \verb{~}.

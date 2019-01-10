@@ -68,6 +68,7 @@ def test_pysplice_multiple_lines():
     hello
 
 
+
     Bye
     \\end{document}\n''')
 
@@ -353,6 +354,7 @@ def test_pysplice_in_preamble():
     \\newcommand{\\calI}{\\mathcal{I}}
     \\newcommand{\\calD}{\\mathcal{D}}
     \\newcommand{\\calB}{\\mathcal{B}}
+
     \\title{a Title}
     \\begin{document}
     hello

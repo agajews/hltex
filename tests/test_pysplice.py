@@ -35,4 +35,5 @@ def test_pysplice_generate_macros():
     \\newcommand{\\calI}{\\mathcal{I}}
     \\newcommand{\\calD}{\\mathcal{D}}
     \\newcommand{\\calB}{\\mathcal{B}}
+    
     ''')
