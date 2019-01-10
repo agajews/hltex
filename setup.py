@@ -18,7 +18,10 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    scripts=['scripts/hltex'],
+    # scripts=['scripts/hltex'],
+    entry_points = {
+        'console_scripts': ['hltex=hltex.cli:translate'],
+    },
     install_requires=['hlbox'],
 )
 
