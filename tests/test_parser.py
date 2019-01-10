@@ -78,7 +78,7 @@ def test_calc_indent_level_good():
 def test_calc_indent_level_empty():
     source = '    \n    some text'
     translator = prepTranslator(source)
-    assert translator.calc_indent_level(move_pos=False) == 1
+    assert translator.calc_indent_level() == 1
     assert source[translator.pos] == ' '
     assert translator.pos == 0
 
@@ -86,7 +86,7 @@ def test_calc_indent_level_empty():
 def test_calc_indent_level_end():
     source = '    '
     translator = prepTranslator(source)
-    assert translator.calc_indent_level(move_pos=False) == 0  # empty line
+    assert translator.calc_indent_level() == 1  # empty line
     assert translator.pos == 0
 
 def test_calc_indent_level_double():
@@ -541,6 +541,14 @@ def test_parse_block_verbatim():
     res = translator.parse_block()
     print(res)
     assert res == '\n\\begin{verbatim}\n    hiiminverbatim\n    \\pysplice:\n        this should be ignored\n    \\eq{ok}: f(x)\n    this too\n\\end{verbatim}\n'
+
+
+def test_parse_verb_command():
+    source = '\nstart\\verb{normal%withcomments{wow get out\\}} and some more'
+    translator = prepTranslator(source, -1)
+    res = translator.parse_block()
+    print(res)
+    assert res == '\nstart\\verb{normal%withcomments{wow get out\\}} and some more\n'
 
 
 def test_document_begin():

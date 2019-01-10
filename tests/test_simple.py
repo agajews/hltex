@@ -199,7 +199,7 @@ def test_multiple_nested_environments():
     ''')
 
 
-def test_multiple_nested_environments():
+def test_a_doc_no_docclass():
     source = dedent('''
     ===
     The document environment is the only one which doesn't need to be indented.
@@ -218,9 +218,9 @@ def test_multiple_nested_environments():
     # import pdb; pdb.set_trace()
     res = translate(source)
     print(res)
-    assert res == dedent(
-    '''
-    \\begin{document}
+    assert res == dedent(   # note the weird indentation is for === at start of file
+                            # TODO: we should probably throw an error
+    '''    \\begin{document}
     The document environment is the only one which doesn't need to be indented.
     \\section{Some Words}
     Here are some words that are in this section.

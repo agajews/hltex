@@ -29,7 +29,7 @@ def resolve_args(name, params, args):
     all_args = []
     arg_num = 0
     if len(args) > len(params):
-        raise Exception('Internal error: too many arguments')  # TODO: be clearer about internal errors
+        raise TranslationError('Too many arguments while resolving arguments for {}'.format(name))
     for param in params:
         if param == '!':
             if arg_num < len(args) and not args[arg_num].optional:
@@ -56,10 +56,11 @@ def unresolve_args(args):
     return argstr
 
 class Command:
-    def __init__(self, name, translate_fn, params=''):
+    def __init__(self, name, translate_fn, params='', is_raw=False):
         self.name = name
         self.translate_fn = translate_fn
         self.params = params
+        self.is_raw = is_raw
         assert all([p in '!?' for p in params])
 
     def translate(self, translator, args):
@@ -91,9 +92,13 @@ def latex_env(name, before='', body='', after='', args='', post_env=''):
 def translate_docclass(translator, opts, arg):
     return latex_cmd('documentclass', Arg(opts, optional=True), Arg(arg))
 
+def translate_verb(translator, body):
+    return latex_cmd('verb', Arg(body))
 
 commands = {
-    'docclass': Command('docclass', translate_docclass, params='?!')
+    'docclass': Command('docclass', translate_docclass, params='?!'),
+    'verb': Command('verb', translate_verb, params='!', is_raw=True),
+    'colon': Command('colon', lambda _: ':', params='')
 }
 
 
@@ -205,6 +210,8 @@ class Translator:
         postcondition: self.pos remain the same UNLESS we enter the document from preamble,
             in which case it's at the next new line
         Checks for ===, the separator between preamble and document
+
+        return: spacing needed before \begin{document}
         '''
         if self.indent_level != 0 or not self.preamble:
             return False
@@ -212,6 +219,7 @@ class Translator:
         # at root level in preamble; lines must start with \ or ===
         token_start = self.pos
         self.parse_empty()
+        line_start = self.pos
         self.parse_while(iswhitespace)
         if self.text[self.pos] == '=':
             separator_start = self.pos
@@ -222,9 +230,10 @@ class Translator:
             self.parse_while(iswhitespace)
             if self.finished() or self.text[self.pos] == '\n':
                 self.preamble = False
-                return True
 
-        elif self.text[self.pos] not in ['\\', '%', '\n']:
+                return self.text[token_start:line_start]
+
+        elif self.text[self.pos] not in ['\\', '%', '\n', '=']:
             self.error("Preamble lines must start with \\.")
 
         self.pos = token_start
@@ -271,11 +280,7 @@ class Translator:
                 self.indent_str))
         return len(indent) // len(self.indent_str)
 
-    def calc_indent_level(self, validate=True, move_pos=False):
-        token_start = self.pos
-        self.parse_empty()
-
-        if validate: assert self.pos == 0 or self.finished() or isnewline(self.text[self.pos - 1]), "pos: {}, text: {}".format(self.pos, self.text[self.pos-1:self.pos+10])
+    def calc_indent_level(self, validate=True):
         '''
         precondition: `self.pos` is at the start of a line
         postcondition: `self.pos` is where it started
@@ -284,11 +289,13 @@ class Translator:
             deeper than the current level)
         returns: the indentation level of the current line, in terms of `self.indent_str` units
         '''
+        if validate: assert self.pos == 0 or self.finished() or isnewline(self.text[self.pos - 1]), "pos: {}, text: {}".format(self.pos, self.text[self.pos-1:self.pos+10])
+        
         indent_start = self.pos
         self.parse_while(iswhitespace)
         indent = self.text[indent_start:self.pos]
         if len(indent) == 0:
-            self.pos = indent_start if move_pos else token_start
+            self.pos = indent_start
             return 0
         if validate: self.validate_indent(indent)
         if self.indent_str == None:
@@ -296,7 +303,7 @@ class Translator:
         indent_level = self.level_of_indent(indent, validate)
         if validate and self.indent_level == -1 and indent_level != 0:
             self.error('The document as a whole must not be indented')
-        self.pos = indent_start if move_pos else token_start
+        self.pos = indent_start
         return indent_level
 
     def parse_empty(self):
@@ -355,7 +362,7 @@ class Translator:
         if control_seq in commands:
             body += self.do_command(commands[control_seq])
         else:
-            args, argstr = self.parse_args()
+            args, argstr = self.parse_args()  # TODO: allow raw args in environments?
             whitespace_start = self.pos
             self.parse_while(iswhitespace)
             if self.not_finished() and self.text[self.pos] == ':':
@@ -381,10 +388,11 @@ class Translator:
         #self.pos -= 1
         return body
 
-    def parse_arg(self, close='}', required=False):
+    def parse_arg(self, close='}', required=False, is_raw=False):
         '''
         close: the closing brace or bracket to the argument
         required: whether to error if no closing brace or bracket is found
+        is_raw: whether the argument is raw (only waiting for unescaped close character)
         precondition: `self.pos` is at the first character following the opening '{' or '['
         postcondition: `self.pos` is at the first character following the closing '}' or ']',
             or at `len(self.text)` if there is no such character; `parse_arg` ignores
@@ -396,7 +404,7 @@ class Translator:
         token_start = self.pos
         body = ''
         while self.not_finished():
-            self.parse_until(lambda c: c == '\\' or c == close or c == '{' or c == '%')
+            self.parse_until(lambda c: c == close or (not is_raw and (c == '\\' or c == '{' or c == '%')))
             if self.not_finished():
                 if self.text[self.pos] == '{':
                     body += self.text[token_start:self.pos]
@@ -408,9 +416,14 @@ class Translator:
                     body += self.parse_backslash()
 
                 elif self.text[self.pos] == close:
+                    if is_raw and self.text[self.pos-1] == '\\':
+                        self.pos += 1
+                        continue  # escaped close }, skip
+
                     body += self.text[token_start:self.pos]
                     self.pos += 1
                     return body
+
                 elif self.text[self.pos] == '%':
                     body += self.text[token_start:self.pos]
                     self.parse_comments()
@@ -422,7 +435,7 @@ class Translator:
         else:
             return None
 
-    def parse_args(self, min_args=None, max_args=None):
+    def parse_args(self, min_args=None, max_args=None, is_raw=False):
         '''
         min_args: an int representing the minumum number of arguments to parse; None for no minimum
         max_args: an int representing the maximum number of arguments to parse; None for unlimited
@@ -444,13 +457,13 @@ class Translator:
 
             if self.text[self.pos] == '{':  # TODO: make this less repetitive?
                 self.pos += 1
-                arg = self.parse_arg(close='}', required=True)
+                arg = self.parse_arg(close='}', required=True, is_raw=is_raw)
                 args.append(Arg(arg, optional=False))
                 nargs += 1
             elif self.text[self.pos] == '[':
                 arg_start = self.pos
                 self.pos += 1
-                arg = self.parse_arg(close=']')
+                arg = self.parse_arg(close=']', is_raw=is_raw)
                 if arg is not None:
                     args.append(Arg(arg, optional=True))
                     nargs += 1
@@ -482,7 +495,7 @@ class Translator:
         '''
         if len(command.params) == 0:  # this is just for efficiency
             return command.translate(self, [])
-        args, argstr = self.parse_args(max_args=len(command.params))
+        args, argstr = self.parse_args(max_args=len(command.params), is_raw=command.is_raw)
         return command.translate(self, args)
 
     def do_environment(self, environment, args, argstr, outer_indent):
@@ -539,7 +552,6 @@ class Translator:
                     elif self.text[self.pos] == '\\':
                         body += self.text[token_start:self.pos]
                         body += self.parse_backslash(allow_env=False)
-
                         token_start = self.pos
 
                     elif self.text[self.pos] == '%':  # include the comments but ignore any \\
@@ -560,7 +572,7 @@ class Translator:
         '''
         precondition: `self.pos` is at the first newline after the colon for environments,
             or the beginning of the file for the outermost call
-        postcondition: `self.pos` is at the start of the line following the block, or at
+        postcondition: `self.pos` is at the endline `\n` following the block, or at
             `len(self.text)` if the block is at the end of the file
         errors:
             if there is an ill-formed environment (e.g. not indended after and not a one-liner)
@@ -573,10 +585,13 @@ class Translator:
 
             If is_raw is True, then return the block of text unmodified
         '''
+
         body = ''
         #print('starting block at {}, line {}, indent: {}'.format(self.pos, self.get_line(), self.indent_level))
         token_start = self.pos
-        indent_level = self.calc_indent_level(not is_raw, move_pos=True)
+
+        self.parse_empty()
+        indent_level = self.calc_indent_level(not is_raw)
         # print(indent_level)
 
         if not is_raw and indent_level != self.indent_level + 1:
@@ -586,11 +601,11 @@ class Translator:
         self.indent_level += 1
 
         while self.not_finished():
-            # precondition: start of a line
-            if self.check_for_document_begin():
+            # precondition: endline \n
+            space_before_document = self.check_for_document_begin()
+            if space_before_document != False:
                 self.indent_level = -1
-                if not body or body[-1] != '\n':
-                    body += '\n'
+                body += space_before_document
 
                 # Maybe: two lines separating preamble and main?
                 return body + latex_env("document", '', self.parse_block(), '', '', '\n')
@@ -602,7 +617,8 @@ class Translator:
             if self.text[self.pos] == '\n':
                 prev_line_end = self.pos
 
-                indent_level = self.calc_indent_level(not is_raw, move_pos=True)
+                self.parse_empty()
+                indent_level = self.calc_indent_level(not is_raw)
                 #print(indent_level, prev_line_end, prev_block_indent, self.indent_level)
 
                 if not is_raw and indent_level > self.indent_level:
@@ -616,13 +632,10 @@ class Translator:
                     return body
 
             elif self.text[self.pos] == '\\':
-
-                # print('Found escape at pos {}'.format(self.pos))
                 body += self.text[token_start:self.pos]
-
                 body += self.parse_backslash()
-
                 token_start = self.pos
+            
             elif self.text[self.pos] == '%':  # include the comments but ignore any \\
                 self.parse_comments()
                 body += self.text[token_start:self.pos]
