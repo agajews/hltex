@@ -20,7 +20,7 @@ def test_do_environment_pysplice_bad():
     translator = prepTranslator(source, -1)
     with pytest.raises(TranslationError) as excinfo:
         translator.do_environment(environments['pysplice'], [], '', 0)
-    assert 'Pysplice execution failed.' in excinfo.value.msg
+    assert 'Pysplice execution failed' in excinfo.value.msg
     assert 'NameError' in excinfo.value.msg
 
 
@@ -35,5 +35,37 @@ def test_pysplice_generate_macros():
     \\newcommand{\\calI}{\\mathcal{I}}
     \\newcommand{\\calD}{\\mathcal{D}}
     \\newcommand{\\calB}{\\mathcal{B}}
+    
+    ''')
+
+
+def test_pysplice_file_env():
+    source = dedent('''
+    \\pysplice:
+        with open('test.txt', 'r') as f:
+            print(f.read())
+    ''')
+    translator = Translator(source, {'test.txt': '42'})
+    translator.indent_str = '    '
+    translator.indent_level = -1
+    res = translator.parse_block()
+    assert res == dedent('''
+    42
+
+    ''')
+
+
+def test_pysplice_nested_file_env():
+    source = dedent('''
+    \\pysplice:
+        with open('folder/folder2/test.txt', 'r') as f:
+            print(f.read())
+    ''')
+    translator = Translator(source, {'folder/folder2/test.txt': '42'})
+    translator.indent_str = '    '
+    translator.indent_level = -1
+    res = translator.parse_block()
+    assert res == dedent('''
+    42
     
     ''')
