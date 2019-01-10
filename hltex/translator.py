@@ -1,8 +1,9 @@
 import sys
 import os
-from textwrap import dedent
+import traceback
 import tempfile
 import warnings
+from textwrap import dedent
 
 hlbox = None
 
@@ -114,7 +115,7 @@ def translate_pysplice(translator, body):
 
             hlbox.configure(
                 profiles=[
-                    hlbox.Profile('python', 'jupyter/scipy-notebook')
+                    hlbox.Profile('python', 'czentye/matplotlib-minimal')
                 ]
             )
         except Exception as e:
@@ -124,20 +125,21 @@ def translate_pysplice(translator, body):
     body = dedent(body).encode('utf-8')
 
     files = [{'name': 'main.py', 'content': body}]
-    limits = {'cputime': 1, 'memory': 64}
+    limits = {'cputime': 10, 'memory': 64}
     tmp_dir = os.path.join(tempfile._get_default_tempdir(),
                            'hltex_python_' + next(tempfile._get_candidate_names()))
     os.mkdir(tmp_dir)
     result = hlbox.run('python', 'python3 main.py', files=files, limits=limits, download_target=tmp_dir)
-    # print(result)
 
     for f in os.listdir(tmp_dir):
         if os.path.isfile(os.path.join(tmp_dir, f)) and f != 'main.py':
             translator.generated_files.append(os.path.join(tmp_dir, f))
 
     if result['exit_code'] != 0:
-        err_msg = "Pysplice execution failed.\nCode block:\n{}\n\nOutput:\n{}".format(body, str(result))
-        print(err_msg)
+        # err_msg = "Pysplice execution failed.\nCode block:\n{}\n\nOutput:\n{}".format(body, str(result))
+        err_lines = result['stderr'].decode('utf-8').split('\n')
+        err = err_lines[-2] if len(err_lines) else ''
+        err_msg = "Pysplice execution failed: `{}`".format(err)
         raise TranslationError(err_msg)
 
     return result['stdout'].decode('utf-8')
@@ -295,7 +297,6 @@ class Translator:
             next non-whitespace line
         '''
         while self.not_finished():
-            # print(self.pos)
             line_end = self.text.find('\n', self.pos)
             if line_end == -1:
                 line_end = len(self.text) - 1
@@ -369,8 +370,6 @@ class Translator:
                         self.parse_while(iswhitespace)
                         if self.not_finished() and self.text[self.pos] == ':':
                             self.pos += 1
-                            # print('at environment')
-                            # print('Doing environment `{}`'.format(control_seq))
                             if control_seq in environments:
                                 environment = environments[control_seq]
                             else:
@@ -568,14 +567,11 @@ class Translator:
             If is_raw is True, then return the block of text unmodified
         '''
         body = ''
-        # print('starting block at {}, `{}`'.format(self.pos, self.text[self.pos:self.pos+10]))
         token_start = self.pos
         self.parse_empty()
 
 
-        # print('finished parsing empty')
         indent_level = self.calc_indent_level(not is_raw)
-        # print(indent_level)
         if not is_raw and indent_level != self.indent_level + 1:
             self.error('Indent Error. You must either put the body of an environment all on one line, or on an indented block on the following line')
 
@@ -601,7 +597,6 @@ class Translator:
                 self.parse_empty()
                 line_start = self.pos
                 indent_level = self.calc_indent_level(not is_raw)
-                # print(indent_level)
                 if not is_raw and indent_level > self.indent_level:
                     self.error('Invalid indentation not following the opening of an environment')
 
@@ -613,11 +608,9 @@ class Translator:
                     return body
 
             elif self.text[self.pos] == '\\':
-                # print('Found escape at pos {}'.format(self.pos))
                 escape_start = self.pos
                 self.pos += 1
                 control_seq = self.parse_control_seq()
-                # print(control_seq)
                 body += self.text[token_start:escape_start]
                 if control_seq in commands:
                     body += self.do_command(commands[control_seq])
@@ -627,8 +620,6 @@ class Translator:
                     self.parse_while(iswhitespace)
                     if self.not_finished() and self.text[self.pos] == ':':
                         self.pos += 1
-                        # print('at environment')
-                        # print('Doing environment `{}`'.format(control_seq))
                         if control_seq in environments:
                             environment = environments[control_seq]
                         else:
@@ -672,13 +663,13 @@ class Translator:
             # print(self.generated_files)
             return res
         except TranslationError as e:
-            self.print_error(e.msg, self.get_line)
+            self.print_error(e.msg, self.get_line())
 
     def translate_internal(self):
         try:
             return {'text': self.parse_file(), 'error': None, 'line': None, 'files': self.generated_files}
         except TranslationError as e:
-            print('Failed with error:', e)
+            traceback.print_exc()
             return {'text': None, 'error': e.msg, 'line': self.get_line(), 'files': []}
 
     def error(self, msg):
@@ -689,8 +680,8 @@ class Translator:
 
     def print_error(self, msg, line):
         ## TODO: prettier errors (line number, another line with ^ pointing to error character, etc.)
-        sys.stderr.write('{} at line {}, char {} (next 10 chars: {})'.format(
-            msg, line, self.pos, self.text[self.pos:self.pos+10]))  # TODO: better errors
+        sys.stderr.write('{} at line {}, char {} (next 10 chars: {})\n'.format(
+            msg, line, self.pos, repr(self.text[self.pos:self.pos+10])))  # TODO: better errors
 
 
 def prepTranslator(source, indent_level=0):
