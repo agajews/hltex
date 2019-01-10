@@ -3,6 +3,11 @@ HLTeX is a new typesetting language built on top of LaTeX designed for concisene
 while also adding support for additional features like inline Matplotlib figure generation
 and SymPy integration
 
+### Installation
+1. Install the compiler with `pip3 install hltex`
+1. Install [Docker](https://www.docker.com/)
+1. Run `docker pull czentye/matplotlib-minimal`
+
 ### Example
 ```TeX
 \documentclass{article}
