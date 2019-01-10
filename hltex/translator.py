@@ -125,6 +125,9 @@ def translate_pysplice(translator, body):
     body = dedent(body).encode('utf-8')
 
     files = [{'name': 'main.py', 'content': body}]
+    for name, content in translator.file_env.items():
+        files.append({'name': name, 'content': content.encode('utf-8')})
+
     limits = {'cputime': 10, 'memory': 64}
     tmp_dir = os.path.join(tempfile._get_default_tempdir(),
                            'hltex_python_' + next(tempfile._get_candidate_names()))
@@ -174,7 +177,7 @@ def iswhitespace(char):
 
 
 class Translator:
-    def __init__(self, text):
+    def __init__(self, text, file_env={}):
         self.indent_str = None
         self.indent_level = 0
 
@@ -185,7 +188,9 @@ class Translator:
             text += '\n'
         self.text = text
         self.preamble = False
+
         self.generated_files = []
+        self.file_env = file_env
 
     def finished(self):
         assert self.pos <= len(self.text)

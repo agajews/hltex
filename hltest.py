@@ -5,8 +5,8 @@ hlbox.configure(
         hlbox.Profile('python', 'czentye/matplotlib-minimal')
     ]
 )
-files = [{'name': 'main.py', 'content': b'import matplotlib;print(43)'}]
+files = [{'name': 'folder/main.py', 'content': b'import matplotlib;print(43)'}]
 limits = {'cputime': 1, 'memory': 64}
-result = hlbox.run('python', 'python3 main.py', files=files, limits=limits, download_target='/tmp/hlbox')
+result = hlbox.run('python', 'python3 folder/main.py', files=files, limits=limits, download_target='/tmp/hlbox')
 print(result)
 
