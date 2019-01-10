@@ -632,7 +632,7 @@ def test_one_line_environment_with_comments():
     assert res == '\n\\begin{equation}    f(x) = \\end{equation}%\\docclass{acomment} \n'
 
 
-def test_missing_end_bracket():
+def test_missing_end_bracket(capsys):
     source = dedent('''
     \\docclass{noend
     ===
@@ -640,9 +640,8 @@ def test_missing_end_bracket():
         never an end
     ''')
     translator = prepTranslator(source)
-    with pytest.raises(TranslationError) as excinfo:
-        translator.translate()
-    assert "Missing closing " in excinfo.value.msg
+    translator.translate()
+    assert "Missing closing " in capsys.readouterr().err
 
-    
+
 
