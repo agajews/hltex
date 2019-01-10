@@ -368,7 +368,7 @@ def test_resolve_args_bad():
 def test_do_command():
     source = '{arg1}[arg2]{arg1}some text'
     translator = Translator(source)
-    res = translator.do_command(Command('test', lambda a: '\\textbf{%s}' % a, '!'))
+    res = translator.do_command(Command('test', lambda t, a: '\\textbf{%s}' % a, '!'))
     print(res)
     assert res == '\\textbf{arg1}'
     assert source[translator.pos] == '['
@@ -377,7 +377,7 @@ def test_do_command():
 def test_do_command_multiple():
     source = '{arg1}[arg2]{arg1}some text'
     translator = Translator(source)
-    res = translator.do_command(Command('test', lambda a, b: '\\textbf{%s, %s}' % (a, b), '!?'))
+    res = translator.do_command(Command('test', lambda t, a, b: '\\textbf{%s, %s}' % (a, b), '!?'))
     print(res)
     assert res == '\\textbf{arg1, arg2}'
     assert source[translator.pos] == '{'
@@ -476,7 +476,7 @@ def test_parse_block_environment_indented():
 def test_do_environment():
     source = '\n    hello\n    \ngoodbye'
     translator = prepTranslator(source)
-    res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
+    res = translator.do_environment(Environment('test', lambda t, b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
     print(res)
     assert res == '\\begin{test}\n    hello\n\\end{test}'
     assert source[translator.pos] == ' '
@@ -485,7 +485,7 @@ def test_do_environment():
 def test_do_environment_args():
     source = '\n    hello\n    \ngoodbye'
     translator = prepTranslator(source)
-    res = translator.do_environment(Environment('test', lambda b, a: '\\begin{test}\\textbf{%s}%s\\end{test}' % (a, b), '!'), [Arg('arg1')], '', 0)
+    res = translator.do_environment(Environment('test', lambda t, b, a: '\\begin{test}\\textbf{%s}%s\\end{test}' % (a, b), '!'), [Arg('arg1')], '', 0)
     print(res)
     assert res == '\\begin{test}\\textbf{arg1}\n    hello\n\\end{test}'
     assert source[translator.pos] == ' '
@@ -495,14 +495,14 @@ def test_do_environment_bad():
     source = '\nhello\n\ngoodbye'
     translator = prepTranslator(source)
     with pytest.raises(TranslationError) as excinfo:
-        translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
+        translator.do_environment(Environment('test', lambda t, b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
     assert 'indented block on the following line' in excinfo.value.msg
 
 
 def test_do_environment_nested():
     source = '\n    hello\n    \\environment:\n        nested\ngoodbye'
     translator = prepTranslator(source)
-    res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
+    res = translator.do_environment(Environment('test', lambda t, b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
     print(res)
     assert res == '\\begin{test}\n    hello\n    \\begin{environment}\n        nested\n    \\end{environment}\n\\end{test}'
     assert source[translator.pos] == 'g'
@@ -511,7 +511,7 @@ def test_do_environment_nested():
 def test_do_environment_nested_end():
     source = '\n    hello\n    \\environment:\n        nested\n'
     translator = prepTranslator(source)
-    res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
+    res = translator.do_environment(Environment('test', lambda t, b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
     print(res)
     assert res == '\\begin{test}\n    hello\n    \\begin{environment}\n        nested\n    \\end{environment}\n\\end{test}'
     assert translator.pos == len(source)
@@ -520,7 +520,7 @@ def test_do_environment_nested_end():
 def test_do_environment_nested_nonewline():
     source = '\n    hello\n    \\environment:\n        nested'
     translator = prepTranslator(source)
-    res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
+    res = translator.do_environment(Environment('test', lambda t, b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
     print(res)
     assert res == '\\begin{test}\n    hello\n    \\begin{environment}\n        nested\n    \\end{environment}\n\\end{test}'
     assert translator.pos == len(source) + 1  # \n appended
@@ -529,7 +529,7 @@ def test_do_environment_nested_nonewline():
 def test_do_environment_nested_comments():
     source = '\n    hello\n    %IGNORETHIN\\environment:\n    \\realEnvironment:\n        nested\ngoodbye'
     translator = prepTranslator(source)
-    res = translator.do_environment(Environment('test', lambda b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
+    res = translator.do_environment(Environment('test', lambda t, b: '\\begin{test}%s\\end{test}' % b, ''), [], '', 0)
     print(res)
     assert res == '\\begin{test}\n    hello\n    %IGNORETHIN\\environment:\n    \\begin{realEnvironment}\n        nested\n    \\end{realEnvironment}\n\\end{test}'
     assert source[translator.pos] == 'g'
@@ -541,7 +541,7 @@ def test_parse_block_verbatim():
     res = translator.parse_block()
     print(res)
     assert res == '\n\\begin{verbatim}\n    hiiminverbatim\n    \\pysplice:\n        this should be ignored\n    \\eq{ok}: f(x)\n    this too\n\\end{verbatim}\n'
-    
+
 
 def test_document_begin():
     source = '\n===\n'

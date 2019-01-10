@@ -1,0 +1,6 @@
+\documentclass{article}
+\pysplice:
+    with open('test.txt', 'w') as f:
+        f.write('I am a test')
+===
+Hey!

@@ -1,7 +1,10 @@
 import sys
+import os
 from textwrap import dedent
+import tempfile
 import warnings
-epicbox = None
+
+hlbox = None
 
 
 class Arg:
@@ -58,8 +61,8 @@ class Command:
         self.params = params
         assert all([p in '!?' for p in params])
 
-    def translate(self, args):
-        return self.translate_fn(*resolve_args(self.name, self.params, args))
+    def translate(self, translator, args):
+        return self.translate_fn(translator, *resolve_args(self.name, self.params, args))
 
 
 class Environment:
@@ -70,9 +73,9 @@ class Environment:
         self.is_raw = is_raw
         assert all([p in '!?' for p in params])
 
-    def translate(self, body, args):
-        try:
-            return self.translate_fn(body, *resolve_args(self.name, self.params, args))
+    def translate(self, translator, body, args):
+        try:  # XXX: why?
+            return self.translate_fn(translator, body, *resolve_args(self.name, self.params, args))
         except TranslationError as e:
             raise e
 
@@ -84,7 +87,7 @@ def latex_env(name, before='', body='', after='', args='', post_env=''):
     return '\\begin{%s}%s%s%s%s\\end{%s}%s' % (name, args, before, body, after, name, post_env)
 
 
-def translate_docclass(opts, arg):
+def translate_docclass(translator, opts, arg):
     return latex_cmd('documentclass', Arg(opts, optional=True), Arg(arg))
 
 
@@ -93,37 +96,44 @@ commands = {
 }
 
 
-def translate_eq(body, label):
+def translate_eq(translator, body, label):
     before = ''
     if label is not None:
         before = '\\label{eq:%s}' % label
     return latex_env('equation', before=before, body=body)
 
 
-def translate_pysplice(body):
+def translate_pysplice(translator, body):
     '''
     Executes the body as a python snippet using epicbox
     '''
-    global epicbox
-    if epicbox is None:
+    global hlbox
+    if hlbox is None:
         try:
-            import epicbox
+            import hlbox
 
-            epicbox.configure(
+            hlbox.configure(
                 profiles=[
-                    epicbox.Profile('python', 'python:3.6.5-alpine')
+                    hlbox.Profile('python', 'jupyter/scipy-notebook')
                 ]
             )
-        except Error as e:
-            raise TranslationError("Failed to configure Epicbox for pysplice. Make sure you have epicbox and docker installed and configured.\n"
-                                    + e.msg)
+        except Exception as e:
+            raise TranslationError("Failed to configure HLBox for pysplice. Make sure you have HLBox and Docker installed and configured.\n"
+                                    + str(e))
 
     body = dedent(body).encode('utf-8')
 
     files = [{'name': 'main.py', 'content': body}]
     limits = {'cputime': 1, 'memory': 64}
-    result = epicbox.run('python', 'python3 main.py', files=files, limits=limits)
-    #print(result)
+    tmp_dir = os.path.join(tempfile._get_default_tempdir(),
+                           'hltex_python_' + next(tempfile._get_candidate_names()))
+    os.mkdir(tmp_dir)
+    result = hlbox.run('python', 'python3 main.py', files=files, limits=limits, download_target=tmp_dir)
+    # print(result)
+
+    for f in os.listdir(tmp_dir):
+        if os.path.isfile(os.path.join(tmp_dir, f)) and f != 'main.py':
+            translator.generated_files.append(os.path.join(tmp_dir, f))
 
     if result['exit_code'] != 0:
         err_msg = "Pysplice execution failed.\nCode block:\n{}\n\nOutput:\n{}".format(body, str(result))
@@ -133,7 +143,7 @@ def translate_pysplice(body):
     return result['stdout'].decode('utf-8')
 
 
-def translate_verbatim(body):
+def translate_verbatim(translator, body):
     return latex_env('verbatim', body=body)
 
 environments = {
@@ -173,6 +183,7 @@ class Translator:
             text += '\n'
         self.text = text
         self.preamble = False
+        self.generated_files = []
 
     def finished(self):
         assert self.pos <= len(self.text)
@@ -405,7 +416,7 @@ class Translator:
             Comments will be included in argstring but not in args
         '''
         if max_args == 0:
-            return command.translate([])
+            return command.translate(self, [])
         args = []
         parse_start = self.pos
         nargs = 0
@@ -453,9 +464,9 @@ class Translator:
         returns: a LaTeX string representing the result of the command
         '''
         if len(command.params) == 0:  # this is just for efficiency
-            return command.translate([])
+            return command.translate(self, [])
         args, argstr = self.parse_args(max_args=len(command.params))
-        return command.translate(args)
+        return command.translate(self, args)
 
     def do_environment(self, environment, args, argstr, outer_indent):
         # TODO: ensure the translate_fn use the same indent string and starts the block with 0 indent,
@@ -505,7 +516,7 @@ class Translator:
                         body += self.text[token_start:self.pos]
                         self.pos += 1  # skip over the end line
                         break
-                    
+
                     elif self.text[self.pos] == '\\':
                         escape_start = self.pos
                         self.pos += 1
@@ -520,11 +531,11 @@ class Translator:
                             self.parse_while(iswhitespace)
                             if self.not_finished() and self.text[self.pos] == ':':
                                 self.warn('Nested environments not supported inside oneline environments.')
-                            
+
                             body += '\\' + control_seq + argstr + self.text[whitespace_start:self.pos]
-                        
+
                         token_start = self.pos
-                                
+
                     elif self.text[self.pos] == '%':  # include the comments but ignore any \\
                         body += self.text[token_start:self.pos]
                         comment_start = self.pos
@@ -533,7 +544,7 @@ class Translator:
                         break
 
         if isinstance(environment, Environment):
-            return environment.translate(body, args) + post_env
+            return environment.translate(self, body, args) + post_env
         else:
             return latex_env(environment, body=body, args=argstr, post_env=post_env+'\n')
 
@@ -648,21 +659,27 @@ class Translator:
     def get_line(self):
         return self.text.count('\n', 0, self.pos)
 
+    def parse_file(self):
+        self.preamble = True
+        self.indent_level = -1  # to simulate document block being indented as if it's a command
+        res = self.parse_block()
+        return res
+
     def translate(self):
         # import pdb;pdb.set_trace()
         try:
-            self.preamble = True
-            self.indent_level = -1  # to simulate document block being indented as if it's a command
-            return self.parse_block()
+            res = self.parse_file()
+            # print(self.generated_files)
+            return res
         except TranslationError as e:
             self.print_error(e.msg, self.get_line)
 
     def translate_internal(self):
         try:
-            self.indent_level = -1  # to simulate document block being indented as if it's a command
-            return {'text': self.parse_block(), 'error': None, 'line': None}
+            return {'text': self.parse_file(), 'error': None, 'line': None, 'files': self.generated_files}
         except TranslationError as e:
-            return {'text': None, 'error': e.msg, 'line': self.get_line()}
+            print('Failed with error:', e)
+            return {'text': None, 'error': e.msg, 'line': self.get_line(), 'files': []}
 
     def error(self, msg):
         raise TranslationError(msg)
