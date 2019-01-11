@@ -35,7 +35,7 @@ def test_pysplice_generate_macros():
     \\newcommand{\\calI}{\\mathcal{I}}
     \\newcommand{\\calD}{\\mathcal{D}}
     \\newcommand{\\calB}{\\mathcal{B}}
-    
+
     ''')
 
 
@@ -67,5 +67,22 @@ def test_pysplice_nested_file_env():
     res = translator.parse_block()
     assert res == dedent('''
     42
-    
+
     ''')
+
+
+def test_pysplice_shared_python():
+    source = dedent('''
+    \\pysplice:
+        x = 3
+    \\pysplice:
+        print(x)
+    ''')
+    translator = prepTranslator(source, -1)
+    res = translator.parse_block()
+    assert res == dedent('''
+
+    3
+
+    ''')
+

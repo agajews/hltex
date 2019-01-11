@@ -1,0 +1,4 @@
+\pysplice:
+    print('\\documentclass{article}')
+===
+Hey

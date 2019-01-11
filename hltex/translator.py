@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 import traceback
 import tempfile
 import warnings
@@ -109,7 +110,7 @@ def translate_pysplice(translator, body):
     Executes the body as a python snippet using epicbox
     '''
     global hlbox
-    if hlbox is None:
+    if hlbox is None or translator.sandbox is None:
         try:
             import hlbox
 
@@ -118,21 +119,48 @@ def translate_pysplice(translator, body):
                     hlbox.Profile('python', 'czentye/matplotlib-minimal')
                 ]
             )
+
+            files = [{'name': 'main.py', 'content': dedent(
+                '''
+                import json as __json
+                import io as __io
+                from textwrap import indent as __indent
+                from contextlib import redirect_stdout as __redirect_stdout
+
+
+                if __name__ == '__main__':
+                    while True:
+                        __code = input()
+                        __string = None
+                        try:
+                            __string = __io.StringIO()
+                            with __redirect_stdout(__string):
+                                exec(eval(__code))
+                            __res = {'output': __string.getvalue(), 'error': None}
+                        except Exception as e:
+                            __res = {'output': __string.getvalue(), 'error': type(e).__name__ + ': ' + str(e)}
+                        print(__json.dumps(__res))
+                ''').encode('utf-8')}]
+
+            for name, content in translator.file_env.items():
+                files.append({'name': name, 'content': content.encode('utf-8')})
+
+            limits = {'cputime': 10, 'memory': 64}
+            translator.sandbox = hlbox.create('python', 'python3 -u main.py', files=files, limits=limits)
+
         except Exception as e:
             raise TranslationError("Failed to configure HLBox for pysplice. Make sure you have HLBox and Docker installed and configured.\n"
                                     + str(e))
 
-    body = dedent(body).encode('utf-8')
-
-    files = [{'name': 'main.py', 'content': body}]
-    for name, content in translator.file_env.items():
-        files.append({'name': name, 'content': content.encode('utf-8')})
-
-    limits = {'cputime': 10, 'memory': 64}
     tmp_dir = os.path.join(tempfile._get_default_tempdir(),
                            'hltex_python_' + next(tempfile._get_candidate_names()))
     os.mkdir(tmp_dir)
-    result = hlbox.run('python', 'python3 main.py', files=files, limits=limits, download_target=tmp_dir)
+
+    body = dedent(body).encode('utf-8')
+    # print('Running line...')
+    result = hlbox.runline(translator.sandbox, repr(body) + '\n')
+    print('Got ', result)
+    # result = hlbox.run('python', 'python3 main.py', files=files, limits=limits, download_target=tmp_dir)
 
     for f in os.listdir(tmp_dir):
         if os.path.isfile(os.path.join(tmp_dir, f)) and f != 'main.py':
@@ -140,13 +168,15 @@ def translate_pysplice(translator, body):
 
     if result['exit_code'] != 0:
         # err_msg = "Pysplice execution failed.\nCode block:\n{}\n\nOutput:\n{}".format(body, str(result))
-        err_lines = result['stderr'].decode('utf-8').split('\n')
-        err = err_lines[-2] if len(err_lines) else ''
-        err_msg = "Pysplice execution failed: `{}`".format(err)
+        # err_lines = result['stderr'].decode('utf-8').split('\n')
+        # err = err_lines[-2] if len(err_lines) else ''
+        err_msg = "Pysplice execution failed"
         raise TranslationError(err_msg)
 
-    return result['stdout'].decode('utf-8')
-
+    output = json.loads(result['stdout'].decode('utf-8'))
+    if output['error'] is not None:
+        raise TranslationError('Pysplice execution failed: {}'.format(output['error']))
+    return output['output']
 
 def translate_verbatim(translator, body):
     return latex_env('verbatim', body=body)
@@ -191,6 +221,8 @@ class Translator:
 
         self.generated_files = []
         self.file_env = file_env
+
+        self.sandbox = None
 
     def finished(self):
         assert self.pos <= len(self.text)
@@ -350,7 +382,7 @@ class Translator:
         assert self.text[self.pos] == '\\', self.pos
         self.pos += 1
         control_seq = self.parse_control_seq()
-        body = ''        
+        body = ''
 
         if control_seq in commands:
             body += self.do_command(commands[control_seq])
@@ -404,7 +436,7 @@ class Translator:
                     body += '{' + self.parse_arg(required=True) + '}'
                 elif self.text[self.pos] == '\\':
                     body += self.text[token_start:self.pos]
-                    
+
                     body += self.parse_backslash()
 
                 elif self.text[self.pos] == close:
@@ -414,7 +446,7 @@ class Translator:
                 elif self.text[self.pos] == '%':
                     body += self.text[token_start:self.pos]
                     self.parse_comments()
-                
+
                 token_start = self.pos
 
         if required:
@@ -642,6 +674,8 @@ class Translator:
         self.preamble = True
         self.indent_level = -1  # to simulate document block being indented as if it's a command
         res = self.parse_block()
+        if self.sandbox is not None:
+            hlbox.destroy(self.sandbox)
         return res
 
     def translate(self):
