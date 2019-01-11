@@ -7,7 +7,8 @@
 \title{a Title: for you}
 \notanenvironment\colon
 
-
+\newcommand{\mycommand}[1]{\textbf{#1}}
+\let: \mycommand{arg} = \textbf{arg}  % backslash is optional
 
 ===
 The document environment is the only one which doesn't need to be indented.

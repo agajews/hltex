@@ -360,3 +360,18 @@ def test_pysplice_in_preamble():
     hello
     \\end{document}
     ''')
+
+
+def test_pysplice_generate_file():
+    source = dedent('''
+    \\pysplice:
+        with open('test.txt', 'w') as f:
+            f.write('I am a test')
+    ===
+    ''')
+    translator = Translator(source)
+    res = translator.translate()
+    print('res:', res)
+    assert len(translator.generated_files) == 1
+    with open(translator.generated_files[0], 'r') as f:
+        assert f.read() == 'I am a test'

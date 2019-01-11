@@ -5,7 +5,7 @@ with open("readme.md", "r") as fh:
 
 setuptools.setup(
     name="hltex",
-    version="0.0.3",
+    version="0.0.4",
     author="Alex Gajewski & Wanqi Zhu",
     author_email="agajews@gmail.com",
     description="A compiler for HLTeX, a higher-level language on top of LaTeX",

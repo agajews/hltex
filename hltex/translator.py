@@ -136,11 +136,14 @@ def translate_pysplice(translator, body):
                 if __name__ == '__main__':
                     while True:
                         __code = input()
+                        __request = eval(__code)
+                        if isinstance(__request, bool):
+                            break
                         __string = None
                         try:
                             __string = __io.StringIO()
                             with __redirect_stdout(__string):
-                                exec(eval(__code))
+                                exec(__request)
                             __res = {'output': __string.getvalue(), 'error': None}
                         except Exception as e:
                             __res = {'output': __string.getvalue(), 'error': type(e).__name__ + ': ' + str(e)}
@@ -151,25 +154,17 @@ def translate_pysplice(translator, body):
                 files.append({'name': name, 'content': content.encode('utf-8')})
 
             limits = {'cputime': 10, 'memory': 64}
-            translator.sandbox = hlbox.create('python', 'python3 -u main.py', files=files, limits=limits)
+            translator.sandbox = hlbox.create('python', 'python3 -u main.py', files=files, limits=limits, prep_download=True)
 
         except Exception as e:
             raise TranslationError("Failed to configure HLBox for pysplice. Make sure you have HLBox and Docker installed and configured.\n"
                                     + str(e))
 
-    tmp_dir = os.path.join(tempfile._get_default_tempdir(),
-                           'hltex_python_' + next(tempfile._get_candidate_names()))
-    os.mkdir(tmp_dir)
-
     body = dedent(body).encode('utf-8')
     # print('Running line...')
     result = hlbox.runline(translator.sandbox, repr(body) + '\n')
-    print('Got ', result)
+    # print('Got ', result)
     # result = hlbox.run('python', 'python3 main.py', files=files, limits=limits, download_target=tmp_dir)
-
-    for f in os.listdir(tmp_dir):
-        if os.path.isfile(os.path.join(tmp_dir, f)) and f != 'main.py':
-            translator.generated_files.append(os.path.join(tmp_dir, f))
 
     if result['exit_code'] != 0:
         # err_msg = "Pysplice execution failed.\nCode block:\n{}\n\nOutput:\n{}".format(body, str(result))
@@ -322,7 +317,7 @@ class Translator:
         returns: the indentation level of the current line, in terms of `self.indent_str` units
         '''
         if validate: assert self.pos == 0 or self.finished() or isnewline(self.text[self.pos - 1]), "pos: {}, text: {}".format(self.pos, self.text[self.pos-1:self.pos+10])
-        
+
         indent_start = self.pos
         self.parse_while(iswhitespace)
         indent = self.text[indent_start:self.pos]
@@ -667,7 +662,7 @@ class Translator:
                 body += self.text[token_start:self.pos]
                 body += self.parse_backslash()
                 token_start = self.pos
-            
+
             elif self.text[self.pos] == '%':  # include the comments but ignore any \\
                 self.parse_comments()
                 body += self.text[token_start:self.pos]
@@ -683,12 +678,27 @@ class Translator:
     def get_line(self):
         return self.text.count('\n', 0, self.pos)
 
+    def fetch_generated_files(self):
+        tmp_dir = os.path.join(tempfile._get_default_tempdir(),
+                            'hltex_python_' + next(tempfile._get_candidate_names()))
+        os.mkdir(tmp_dir)
+        hlbox.runline(self.sandbox, 'False\n')  # trigger tar
+        hlbox.download(self.sandbox, tmp_dir)
+
+        for f in os.listdir(tmp_dir):
+            if os.path.isfile(os.path.join(tmp_dir, f)) and f != 'main.py':
+                self.generated_files.append(os.path.join(tmp_dir, f))
+
+
     def parse_file(self):
         self.preamble = True
         self.indent_level = -1  # to simulate document block being indented as if it's a command
         res = self.parse_block()
+
+        self.fetch_generated_files()
         if self.sandbox is not None:
             hlbox.destroy(self.sandbox)
+
         return res
 
     def translate(self):
