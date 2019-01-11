@@ -238,7 +238,7 @@ class Translator:
             in which case it's at the next new line
         Checks for ===, the separator between preamble and document
 
-        return: spacing needed before \begin{document}
+        return: spacing needed before \\begin{document}
         '''
         if self.indent_level != 0 or not self.preamble:
             return False
@@ -394,7 +394,7 @@ class Translator:
             self.parse_while(iswhitespace)
             if self.not_finished() and self.text[self.pos] == ':':
                 if not allow_env:
-                    self.warn('Nested environments not supported inside oneline environments.')
+                    self.error('Nested environments not supported inside oneline environments.')
                     return body
 
                 self.pos += 1
@@ -695,8 +695,8 @@ class Translator:
         self.indent_level = -1  # to simulate document block being indented as if it's a command
         res = self.parse_block()
 
-        self.fetch_generated_files()
         if self.sandbox is not None:
+            self.fetch_generated_files()
             hlbox.destroy(self.sandbox)
 
         return res

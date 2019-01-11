@@ -375,3 +375,19 @@ def test_pysplice_generate_file():
     assert len(translator.generated_files) == 1
     with open(translator.generated_files[0], 'r') as f:
         assert f.read() == 'I am a test'
+
+
+def test_colon():
+    source = dedent('''
+    \\documentclass{article}
+    ===
+    \\textbf{hi}\\colon
+    Hello?
+    ''')
+    assert translate(source) == dedent(
+    '''
+    \\documentclass{article}
+    \\begin{document}
+    \\textbf{hi}:
+    Hello?
+    \\end{document}\n''')
