@@ -1,7 +1,6 @@
 import os
 import sys
 import traceback
-import warnings
 
 from .control import Arg, Environment, commands, environments, latex_env
 from .errors import TranslationError
@@ -43,7 +42,7 @@ class Translator:
         assert self.pos <= len(self.text)
         return self.pos == len(self.text)
 
-    def not_finished(self):
+    def not_finished(self):  # TODO: get rid of this
         return not self.finished()
 
     def check_for_document_begin(self):
@@ -77,7 +76,7 @@ class Translator:
 
                 return self.text[token_start:line_start]
 
-        elif self.text[self.pos] not in ["\\", "%", "\n", "="]:
+        elif self.text[self.pos] not in "\\%\n=":
             self.error("Preamble must consist exclusively of commands and environments")
 
         self.pos = token_start
@@ -398,7 +397,7 @@ class Translator:
                 # print('end env: ', self.pos, self.get_line(), environment.name if isinstance(environment, Environment) else str(environment), self.indent_level, outer_indent)
                 if outer_indent > 0:
                     body += self.indent_str * outer_indent
-            else:
+            else:  # TODO: call parse_block instead
                 # For one-liners, we keep the whitespace we've parsed over
                 while self.not_finished():
                     self.parse_until(lambda c: c in ["\n", "\\", "%"])
@@ -425,8 +424,7 @@ class Translator:
 
         if isinstance(environment, Environment):
             return environment.translate(self, body, args) + post_env
-        else:
-            return latex_env(environment, body=body, args=argstr, post_env=post_env)
+        return latex_env(environment, body=body, args=argstr, post_env=post_env)
 
     def parse_block(self, is_raw=False):
         # TODO: can this be broken up into smaller methods?
@@ -457,7 +455,7 @@ class Translator:
 
         if not is_raw and indent_level != self.indent_level + 1:
             self.error(
-                "Indent Error. You must either put the body of an environment all on one line, or on an indented block on the following line"
+                "Indent Error: you must either put the body of an environment all on one line, or on an indented block on the following line"
             )
 
         prev_block_indent = self.indent_level
@@ -571,11 +569,8 @@ class Translator:
             traceback.print_exc()
             return {"text": None, "error": e.msg, "line": self.get_line(), "files": []}
 
-    def error(self, msg):
+    def error(self, msg):  # pylint: disable=no-self-use
         raise TranslationError(msg)
-
-    def warn(self, msg):
-        warnings.warn(msg)
 
     def print_error(self, msg, line):
         ## TODO: prettier errors (line number, another line with ^ pointing to error character, etc.)
