@@ -1,9 +1,35 @@
+import textwrap
+
 from .context import increment, parse_while
 from .errors import InvalidIndentation
 
 
 def iswhitespace(char):
     return str.isspace(char) and not char == "\n"
+
+
+def postprocess_block(res, state, outer_indent_level):
+    indent_str = (state.indent_str or "") * outer_indent_level
+    lines = res.split("\n")
+    assert lines
+    res = lines[0]
+    if len(lines) > 1:
+        res += "\n" + textwrap.indent("\n".join(lines[1:]), indent_str)
+    return res + "\n"
+
+
+def preprocess_block(body):
+    body = textwrap.dedent(body)
+    if body and body[0] == "\n" and body[-1] != "\n":  # indented block
+        body += "\n"
+    return body
+
+
+def indent_body(body, state):
+    if body and body[0] == "\n":  # indented block
+        if state.indent_str is not None:
+            body = textwrap.indent(body, state.indent_str)
+    return body
 
 
 def parse_empty(state):

@@ -41,3 +41,14 @@ def test_preamble_envs():
         res
         == "\\documentclass{article}\n\\begin{eq}\n    f(x)\n\\end{eq}\n\\begin{document}\n    Hey!\n    Hey again!\n\\end{document}\n"
     )
+
+
+def test_preamble_oneliners():
+    source = "\\documentclass{article}\n\\eq:    f(x)\n===\nHey!\nHey again!"
+    state = State(source)
+    res = parse_block(state, preamble=True)
+    print(repr(res))
+    assert (
+        res
+        == "\\documentclass{article}\n\\begin{eq}f(x)\\end{eq}\n\\begin{document}\nHey!\nHey again!\n\\end{document}\n"
+    )

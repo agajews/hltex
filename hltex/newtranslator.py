@@ -1,4 +1,4 @@
-from textwrap import dedent, indent
+from textwrap import dedent
 
 from .context import increment, parse_until, parse_while
 from .errors import (
@@ -8,7 +8,14 @@ from .errors import (
     UnexpectedEOF,
     UnexpectedIndentation,
 )
-from .indentation import calc_indent_level, iswhitespace, line_is_empty, parse_empty
+from .indentation import (
+    calc_indent_level,
+    iswhitespace,
+    line_is_empty,
+    parse_empty,
+    postprocess_block,
+    preprocess_block,
+)
 from .newcontrol import latex_env
 from .state import State
 
@@ -200,16 +207,9 @@ def parse_native_control(state, name, outer_indent_level):
         return "\\" + name + argstr
     state.run(increment)
     body = state.run(parse_environment_body, outer_indent_level=outer_indent_level)
-    res = latex_env(state, name, argstr, dedent(body))
+    res = latex_env(state, name, argstr, preprocess_block(body))
     # Don't indent the first line
-    lines = res.split("\n")
-    assert lines
-    res = lines[0]
-    if len(lines) > 1:
-        res += "\n" + indent(
-            "\n".join(lines[1:]), (state.indent_str or "") * outer_indent_level
-        )
-    return res
+    return postprocess_block(res, state, outer_indent_level)
 
 
 def parse_custom_environment(state, environment, outer_indent_level):
@@ -219,18 +219,16 @@ def parse_custom_environment(state, environment, outer_indent_level):
     postcondition: `state.pos` is at the start of the next non-empty line following the
         indented block
     """
-    args = state.run(parse_args, name=environment.name, params=environment.params)
+    args = parse_args(state, name=environment.name, params=environment.params)
     state.run(parse_while, pred=iswhitespace)
     if state.finished():
         raise UnexpectedEOF("Environments must be followed by colons")
     if not state.text[state.pos] == ":":
         raise InvalidSyntax("Environments must be followed by colons")
-    # state.run(increment)
+    state.run(increment)
     body = state.run(parse_environment_body, outer_indent_level=outer_indent_level)
-    return indent(
-        state.indent_str * outer_indent_level,
-        environment.translate(state, args, dedent(body)),
-    )
+    res = environment.translate(state, preprocess_block(body), args)
+    return postprocess_block(res, state, outer_indent_level)
 
 
 def parse_environment_body(state, outer_indent_level):
@@ -239,7 +237,6 @@ def parse_environment_body(state, outer_indent_level):
     postcondition: `state.pos` is at the next non-empty line following the indented
         block, or at the end of the line for one-liners
     """
-    print(repr(state.text[state.pos :]))
     state.run(parse_while, pred=iswhitespace)
     if state.finished():
         raise UnexpectedEOF("Environment missing body")
@@ -252,8 +249,6 @@ def parse_environment_body(state, outer_indent_level):
     if line_is_empty(state):
         raise UnexpectedEOF("Environment missing body")
     indent_level = calc_indent_level(state)
-    print(indent_level)
-    print(state.indent_str)
     if indent_level != outer_indent_level + 1:
         raise InvalidSyntax("Missing indentation after environment")
     return body, parse_block
@@ -269,8 +264,10 @@ def parse_document(state):
     if calc_indent_level(state) != 0:
         raise UnexpectedIndentation("The document as a whole must not be indented")
     state.in_document = True
-    document = state.run(parse_block)
-    return latex_env(state, "document", "", "\n" + document)
+    document = "\n" + state.run(parse_block)
+    return postprocess_block(
+        latex_env(state, "document", "", preprocess_block(document)), state, 0
+    )
 
 
 def parse_block_newline(state, outer_indent_level, preamble=False):
@@ -301,10 +298,8 @@ def parse_block_control(state, outer_indent_level, preamble=False):
         argument's closing brace, or at the start of the next non-empty line for
         indented environments, or at the start of the next line for one-liners
     """
-    print("Block control:", preamble)
     is_env = False
     name = state.run(parse_control_name)
-    print("Got name", name)
     if name in state.commands:
         body = state.run(parse_custom_command, command=state.commands[name])
     if name in state.environments:
@@ -320,14 +315,10 @@ def parse_block_control(state, outer_indent_level, preamble=False):
         )
         if body and body[-1] == "\n":
             is_env = True
-            print("Is env")
-            print("At:", repr(state.text[state.pos :]))
-            print(preamble)
     if is_env:
         return body + parse_block_newline(
             state, outer_indent_level=outer_indent_level, preamble=preamble
         )
-    print("Going back to body")
     return body + parse_block_body(
         state, outer_indent_level=outer_indent_level, preamble=preamble
     )
@@ -340,7 +331,6 @@ def parse_block_body(state, outer_indent_level, preamble=False):
         indented block, or at `len(state.text)` if there is no next non-empty line
     """
     body = state.run(parse_until, pred=lambda c: c in "\\\n{}")
-    print("Body preamble", preamble)
 
     if state.finished():
         return body

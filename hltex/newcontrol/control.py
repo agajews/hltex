@@ -1,4 +1,4 @@
-from textwrap import indent
+from ..indentation import indent_body
 
 commands = {}
 environments = {}
@@ -27,10 +27,5 @@ class Environment:
 
 
 def latex_env(state, name, argstr, body):
-    assert body
-    if body[0] == "\n":  # indented block
-        if state.indent_str is not None:
-            body = indent(body, state.indent_str)
-        if body[-1] != "\n":
-            body += "\n"
-    return "\\begin{%s}%s%s\\end{%s}\n" % (name, argstr, body, name)
+    body = indent_body(body, state)
+    return "\\begin{%s}%s%s\\end{%s}" % (name, argstr, body, name)

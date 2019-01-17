@@ -1,5 +1,9 @@
 from hltex.newcontrol import Environment
-from hltex.newtranslator import parse_environment_body, parse_native_control
+from hltex.newtranslator import (
+    parse_custom_environment,
+    parse_environment_body,
+    parse_native_control,
+)
 from hltex.state import State
 
 
@@ -46,10 +50,9 @@ def test_parse_native_control_args_optional():
 def test_parse_native_control_one_liner():
     source = "{arg1}{arg2}:    some words"
     state = State(source)
-    assert (
-        state.run(parse_native_control, name="something", outer_indent_level=0)
-        == "\\begin{something}{arg1}{arg2}some words\\end{something}\n"
-    )
+    res = state.run(parse_native_control, name="something", outer_indent_level=0)
+    print(repr(res))
+    assert res == "\\begin{something}{arg1}{arg2}some words\\end{something}\n"
     assert state.pos == len(source)
 
 
@@ -138,4 +141,43 @@ def test_parse_environment_body_indented_multiline_empty_not_eof():
     res = state.run(parse_environment_body, outer_indent_level=0)
     print(repr(res))
     assert res == "\n    something\n    something else\n   \n  \n"
+    assert source[state.pos] == "1"
+
+
+def test_custom_environment():
+    source = ": \\ Hey"
+    state = State(source)
+
+    def translate_fn(_state, body):
+        return "\\begin{itemize}\\item %s\\end{itemize}" % body
+
+    res = parse_custom_environment(state, Environment("test", translate_fn, ""), 0)
+    print(repr(res))
+    assert res == "\\begin{itemize}\\item \\ Hey\\end{itemize}\n"
+    assert state.pos == len(source)
+
+
+def test_custom_environment_newline():
+    source = ": \\ Hey\n"
+    state = State(source)
+
+    def translate_fn(_state, body):
+        return "\\begin{itemize}\\item %s\\end{itemize}" % body
+
+    res = parse_custom_environment(state, Environment("test", translate_fn, ""), 0)
+    print(repr(res))
+    assert res == "\\begin{itemize}\\item \\ Hey\\end{itemize}\n"
+    assert state.pos == len(source)
+
+
+def test_custom_environment_not_eof():
+    source = ": \\ Hey\n123"
+    state = State(source)
+
+    def translate_fn(_state, body):
+        return "\\begin{itemize}\\item %s\\end{itemize}" % body
+
+    res = parse_custom_environment(state, Environment("test", translate_fn, ""), 0)
+    print(repr(res))
+    assert res == "\\begin{itemize}\\item \\ Hey\\end{itemize}\n"
     assert source[state.pos] == "1"
