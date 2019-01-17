@@ -10,25 +10,20 @@ class InternalError(TranslationError):
 
 
 class UnexpectedEOF(TranslationError):
-    def __init__(self, msg):
-        super().__init__(msg)
+    pass
 
 
 class MissingArgument(TranslationError):
-    def __init__(self, msg):
-        super().__init__(msg)
+    pass
 
 
 class InvalidIndentation(TranslationError):
-    def __init__(self, msg):
-        super().__init__(msg)
+    pass
 
 
 class UnexpectedIndentation(TranslationError):
-    def __init__(self, msg):
-        super().__init__(msg)
+    pass
 
 
 class InvalidSyntax(TranslationError):
-    def __init__(self, msg):
-        super().__init__(msg)
+    pass

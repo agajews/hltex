@@ -43,12 +43,41 @@ def test_parse_native_control_args_optional():
     assert source[state.pos] == "1"
 
 
+def test_parse_native_control_one_liner():
+    source = "{arg1}{arg2}:    some words"
+    state = State(source)
+    assert (
+        state.run(parse_native_control, name="something", outer_indent_level=0)
+        == "\\begin{something}{arg1}{arg2}some words\\end{something}\n"
+    )
+    assert state.pos == len(source)
+
+
+def test_parse_native_control_one_liner_newline():
+    source = "{arg1}{arg2}: some words\n"
+    state = State(source)
+    assert (
+        state.run(parse_native_control, name="something", outer_indent_level=0)
+        == "\\begin{something}{arg1}{arg2}some words\\end{something}\n"
+    )
+    assert state.pos == len(source)
+
+
+def test_parse_native_control_one_liner_newline_empty():
+    source = "{arg1}{arg2}:    some words\n  "
+    state = State(source)
+    res = state.run(parse_native_control, name="something", outer_indent_level=0)
+    print(repr(res))
+    assert res == "\\begin{something}{arg1}{arg2}some words\\end{something}\n"
+    assert source[state.pos] == " "
+
+
 def test_parse_native_control_env():
     source = "{arg1}{arg2}:\n    some words"
     state = State(source)
     assert (
         state.run(parse_native_control, name="something", outer_indent_level=0)
-        == "\\begin{something}{arg1}{arg2}\n    some words\n\\end{something}"
+        == "\\begin{something}{arg1}{arg2}\n    some words\n\\end{something}\n"
     )
     assert state.pos == len(source)
 
@@ -56,8 +85,10 @@ def test_parse_native_control_env():
 def test_parse_environment_body():
     source = "something\n"
     state = State(source)
-    assert state.run(parse_environment_body, outer_indent_level=0) == "something"
-    assert source[state.pos] == "\n"
+    res = state.run(parse_environment_body, outer_indent_level=0)
+    print(repr(res))
+    assert res == "something"
+    assert state.pos == len(source)
 
 
 def test_parse_environment_body_eof():
@@ -71,7 +102,7 @@ def test_parse_environment_body_command():
     source = "some\\thi{n}g\n"
     state = State(source)
     assert state.run(parse_environment_body, outer_indent_level=0) == "some\\thi{n}g"
-    assert source[state.pos] == "\n"
+    assert state.pos == len(source)
 
 
 def test_parse_environment_body_indented():

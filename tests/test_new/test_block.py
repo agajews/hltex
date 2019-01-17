@@ -135,14 +135,28 @@ def test_parse_block_indented_not_end_empty():
     assert source[state.pos] == "1"
 
 
-# def test_parse_block_nested():
-#     source = "\\eq:\n  \\split:\n    \\textbf{Hello}"
-#     state = State(source)
-#     assert (
-#         state.run(parse_block)
-#         == "\\begin{eq}\n  \\begin{split}\n    \\textbf{Hello}\n  \\end{split}\n\\end{eq}"
-#     )
-#     assert source[state.pos] == "1"
+def test_parse_block_nested():
+    source = "\\eq:\n  \\split:\n    \\textbf{Hello}"
+    state = State(source)
+    res = state.run(parse_block)
+    print(res)
+    assert (
+        res
+        == "\\begin{eq}\n  \\begin{split}\n    \\textbf{Hello}\n  \\end{split}\n\\end{eq}\n"
+    )
+    assert state.pos == len(source)
+
+
+def test_parse_block_nested_not_start():
+    source = "123\\eq:\n  \\split:\n    \\textbf{Hello}"
+    state = State(source)
+    res = state.run(parse_block)
+    print(repr(res))
+    assert (
+        res
+        == "123\\begin{eq}\n  \\begin{split}\n    \\textbf{Hello}\n  \\end{split}\n\\end{eq}\n"
+    )
+    assert state.pos == len(source)
 
 
 def test_parse_block_control_both_args_spaced():
@@ -175,3 +189,24 @@ def test_parse_block_control_both_args_unexpected():
     with pytest.raises(InvalidSyntax) as excinfo:
         state.run(parse_block)
     assert "Unexpected `}`" in excinfo.value.msg
+
+
+def test_parse_block_not_eof():
+    source = "\\eq:\n  \\textbf{Hello}\n123"
+    state = State(source)
+    res = state.run(parse_block)
+    print(res)
+    assert res == "\\begin{eq}\n  \\textbf{Hello}\n\\end{eq}\n123"
+    assert state.pos == len(source)
+
+
+def test_parse_block_stacked():
+    source = "\\eq:\n  \\textbf{Hello}\n\\eq:\n  f(x)\n123"
+    state = State(source)
+    res = state.run(parse_block)
+    print(res)
+    assert (
+        res
+        == "\\begin{eq}\n  \\textbf{Hello}\n\\end{eq}\n\\begin{eq}\n  f(x)\n\\end{eq}\n123"
+    )
+    assert state.pos == len(source)

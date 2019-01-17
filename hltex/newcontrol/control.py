@@ -27,12 +27,10 @@ class Environment:
 
 
 def latex_env(state, name, argstr, body):
-    print(repr(body))
     assert body
-    if body[0] == "\n":
-        assert state.indent_str is not None
-        body = indent(body, state.indent_str)
-        print(repr(body))
-    if body[-1] != "\n":
-        body += "\n"
-    return "\\begin{%s}%s%s\\end{%s}" % (name, argstr, body, name)
+    if body[0] == "\n":  # indented block
+        if state.indent_str is not None:
+            body = indent(body, state.indent_str)
+        if body[-1] != "\n":
+            body += "\n"
+    return "\\begin{%s}%s%s\\end{%s}\n" % (name, argstr, body, name)

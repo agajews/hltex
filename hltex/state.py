@@ -1,4 +1,3 @@
-from .errors import InternalError
 from .newcontrol import commands, environments
 
 
