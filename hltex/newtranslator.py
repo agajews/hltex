@@ -8,8 +8,9 @@ from .errors import (
     UnexpectedEOF,
     UnexpectedIndentation,
 )
-from .indentation import calc_indent_level, iswhitespace, parse_empty
+from .indentation import calc_indent_level, iswhitespace, line_is_empty, parse_empty
 from .newcontrol import latex_env
+from .state import State
 
 
 def parse_control_name(state):
@@ -106,10 +107,12 @@ def parse_args(state, name, params):
     """
     args = []
     for param in params:
-        if param.optional:
+        if param == "?":
             arg = state.run(parse_optional_arg)
-        else:
+        elif param == "!":
             arg = state.run(parse_required_arg, name=name)
+        else:
+            raise InternalError()
         args.append(arg)
     return args
 
@@ -120,12 +123,16 @@ def parse_optional_argstr(state):
         from the first character following the opening bracket)
     postcondition: `state.pos` is at the first character following the closing brace
     """
-    body = state.run(parse_until, pred=lambda c: c in "\n{}\\]")
+    body = state.run(parse_until, pred=lambda c: c in "\n{}\\[]")
     if state.finished() or state.text[state.pos] == "\n":
         return None
     if state.text[state.pos] == "{":
         state.run(increment)
         body += "{" + state.run(parse_group, end="}") + "}"
+        return body, parse_optional_argstr
+    if state.text[state.pos] == "[":
+        state.run(increment)
+        body += "[" + state.run(parse_group, end="]") + "]"
         return body, parse_optional_argstr
     if state.text[state.pos] == "\\":
         state.run(increment)
@@ -161,7 +168,7 @@ def parse_argstr(state):
         if res is None:
             state.pos = start
             return ""
-        body += "[" + state.run(parse_optional_argstr) + "]"
+        body += "[" + res + "]"
         return body, parse_argstr
     raise InternalError()
 
@@ -173,7 +180,7 @@ def parse_custom_command(state, command):
     postcondition: `state.pos` is at the first character following the last argument's
         closing bracket or brace
     """
-    args = state.run(parse_args, name=command.name, params=command.params)
+    args = parse_args(state, name=command.name, params=command.params)
     return command.translate(state, args)
 
 
@@ -193,10 +200,8 @@ def parse_native_control(state, name, outer_indent_level):
         return "\\" + name + argstr
     state.run(increment)
     body = state.run(parse_environment_body, outer_indent_level=outer_indent_level)
-    return indent(
-        state.indent_str * outer_indent_level,
-        latex_env(state, name, dedent(body), argstr),
-    )
+    res = latex_env(state, name, argstr, dedent(body))
+    return indent(res, state.indent_str * outer_indent_level)
 
 
 def parse_custom_environment(state, environment, outer_indent_level):
@@ -230,9 +235,11 @@ def parse_environment_body(state, outer_indent_level):
     if state.finished():
         raise UnexpectedEOF("Environment missing body")
     if not state.text[state.pos] == "\n":  # TODO: parse one-liners better
-        return state.run(parse_until, lambda c: c == "\n")
-    state.run(increment)
+        return state.run(parse_until, pred=lambda c: c == "\n")
+    # state.run(increment)
     body = state.run(parse_empty)
+    if line_is_empty(state):
+        raise UnexpectedEOF("Environment missing body")
     indent_level = calc_indent_level(state)
     if indent_level != outer_indent_level + 1:
         raise InvalidSyntax("Missing indentation after environment")
@@ -242,17 +249,17 @@ def parse_environment_body(state, outer_indent_level):
 def parse_block_newline(state, outer_indent_level):
     """
     precondition: `state.pos` is at a newline in a block
-    postcondition: `state.pos` is at the stat of the next line
+    postcondition: `state.pos` is at the start of the next line
     """
     state.run(increment)
-    if state.finished():
-        return "\n"
+    if line_is_empty(state):
+        return "\n", parse_block_body, {"outer_indent_level": outer_indent_level}
     indent_level = calc_indent_level(state)
     if indent_level < outer_indent_level:
         return "\n"
     if indent_level > outer_indent_level:
         raise UnexpectedIndentation("Indentation should only follow environments")
-    return "\n", parse_block  # triggers the next parse_block command
+    return "\n", parse_block_body, {"outer_indent_level": outer_indent_level}
 
 
 def parse_block_control(state, outer_indent_level):
@@ -262,28 +269,30 @@ def parse_block_control(state, outer_indent_level):
         argument's closing brace, or at the start of the next non-empty line for
         indented environments, or at the start of the next line for one-liners
     """
+    state.run(increment)
     name = state.run(parse_control_name)
     if name in state.commands:
-        return state.run(parse_custom_command, command=state.commands[name])
+        body = state.run(parse_custom_command, command=state.commands[name])
+        return body, parse_block_body, {"outer_indent_level": outer_indent_level}
     if name in state.environments:
-        return state.run(
+        body = state.run(
             parse_custom_environment,
             environment=state.environments[name],
             outer_indent_level=outer_indent_level,
         )
-    return state.run(
+        return body, parse_block_body, {"outer_indent_level": outer_indent_level}
+    body = state.run(
         parse_native_control, name=name, outer_indent_level=outer_indent_level
     )
+    return body, parse_block_body, {"outer_indent_level": outer_indent_level}
 
 
-def parse_block(state):
+def parse_block_body(state, outer_indent_level):
     """
-    precondition: `state.pos` is somewhere in the block (typically `parse_block` should
-        be called from the start of the line (e.g. the line after a colon))
+    precondition: `state.pos` is somewhere inside a block
     postcondition: `state.pos` is at the start of the next non-empty line after the
-        indented block
+        indented block, or at `len(state.text)` if there is no next non-empty line
     """
-    outer_indent_level = calc_indent_level(state)
     body = state.run(parse_until, pred=lambda c: c in "\\\n{}")
 
     if state.finished():
@@ -293,8 +302,33 @@ def parse_block(state):
     if state.text[state.pos] == "\\":
         return body, parse_block_control, {"outer_indent_level": outer_indent_level}
     if state.text[state.pos] == "{":
+        state.run(increment)
         body += "{" + state.run(parse_group, end="}") + "}"
-        return body, parse_block
+        return body, parse_block_body, {"outer_indent_level": outer_indent_level}
     if state.text[state.pos] == "}":
         raise InvalidSyntax("Unexpected `}`")
     raise InternalError()
+
+
+def parse_block(state):
+    """
+    precondition: `state.pos` is at the start of a line in the block (typically
+        `parse_block` should be called from the line after a colon)
+    postcondition: `state.pos` is at the start of the next non-empty line after the
+        indented block
+    """
+    body = state.run(parse_empty)
+    if line_is_empty(state):
+        return body
+    outer_indent_level = calc_indent_level(state)
+    return body, parse_block_body, {"outer_indent_level": outer_indent_level}
+
+
+def translate(source):
+    state = State(source)
+    res = state.run(parse_block)
+    return res
+
+
+# TODO: raw blocks, arguments
+# TODO: comments

@@ -21,7 +21,7 @@ def parse_empty(state):
         state.run(increment)
         return body + "\n", parse_empty
     state.pos = start
-    return body
+    return ""
 
 
 def validate_indent_str(indent):
@@ -73,15 +73,30 @@ def get_indent(state):
     return indent
 
 
-def calc_indent_level(state):
+def line_is_empty(state):
     """
     precondition: `self.pos` is at the start of a line
+    postcondition: `self.pos` is where it started
+    """
+    start = state.pos
+    state.run(parse_while, pred=iswhitespace)
+    res = state.finished() or state.text[state.pos] == "\n"
+    state.pos = start
+    return res
+
+
+def calc_indent_level(state):
+    """
+    precondition: `self.pos` is at the start of a non-empty line
     postcondition: `self.pos` is where it started
     errors: if the current line isn't well-indented (e.g. if the indentation contains
         both tabs and spaces)
     returns: the indentation level of the current line, in terms of `self.indent_str` units
     """
+    assert not line_is_empty(state)
     indent = state.run(get_indent)
+    if indent == "":
+        return 0
     if state.indent_str is None:
         validate_indent_str(indent)
         state.indent_str = indent

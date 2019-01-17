@@ -1,7 +1,12 @@
 import pytest
 
 from hltex.errors import InvalidIndentation
-from hltex.indentation import calc_indent_level, level_of_indent, validate_indent
+from hltex.indentation import (
+    calc_indent_level,
+    level_of_indent,
+    line_is_empty,
+    validate_indent,
+)
 from hltex.state import State
 
 
@@ -40,6 +45,12 @@ def test_calc_indent_level():
     assert calc_indent_level(state) == 1
 
 
+def test_calc_indent_level_empty():
+    source = """hi"""
+    state = State(source)
+    assert calc_indent_level(state) == 0
+
+
 def test_calc_indent_level_zero():
     source = """hi"""
     state = State(source, indent_str="    ")
@@ -67,3 +78,38 @@ def test_calc_indent_level_bad():
     assert (
         "Indentation must be in multiples of the base indentation" in excinfo.value.msg
     )
+
+
+def test_line_is_empty():
+    source = """    \n123"""
+    state = State(source)
+    assert line_is_empty(state)
+    assert state.pos == 0
+
+
+def test_line_is_empty_newline():
+    source = """    \n"""
+    state = State(source)
+    assert line_is_empty(state)
+    assert state.pos == 0
+
+
+def test_line_is_empty_eof():
+    source = """    """
+    state = State(source)
+    assert line_is_empty(state)
+    assert state.pos == 0
+
+
+def test_line_is_empty_tabs():
+    source = """  \t """
+    state = State(source)
+    assert line_is_empty(state)
+    assert state.pos == 0
+
+
+def test_line_is_empty_not():
+    source = """    123\n456"""
+    state = State(source)
+    assert not line_is_empty(state)
+    assert state.pos == 0

@@ -21,11 +21,11 @@ class State:
         """
         string = ""
         start = self.pos
+        assert self.pos <= len(self.text)
         while context is not None:
+            assert self.pos <= len(self.text)
             res = context(self, **kwargs)
             if res is None:
-                if string:
-                    raise InternalError()
                 self.pos = start
                 return None
             if isinstance(res, tuple):  # TODO: clean up this logic

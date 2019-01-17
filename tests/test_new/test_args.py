@@ -1,8 +1,10 @@
 import pytest
 
 from hltex.errors import MissingArgument, UnexpectedEOF
+from hltex.newcontrol import Command
 from hltex.newtranslator import (
     parse_arg_control,
+    parse_args,
     parse_optional_arg,
     parse_required_arg,
 )
@@ -45,7 +47,19 @@ def test_arg_control_empty():
     assert "Unescaped backslashes" in excinfo.value.msg
 
 
-# TODO: test arg_control with custom command
+def test_arg_control_custom_command():
+    source = "some{\\thing{arg1}}123"
+
+    def thing_translate_fn(_state, a):
+        return "\\textbf{%s}" % a
+
+    def some_translate_fn(_state, a):
+        return "\\textsl{%s}" % a
+
+    state = State(source)
+    state.commands["thing"] = Command("thing", thing_translate_fn, "!")
+    state.commands["some"] = Command("some", some_translate_fn, "!")
+    assert state.run(parse_arg_control) == "\\textsl{\\textbf{arg1}}"
 
 
 def test_optional_arg():
@@ -103,4 +117,36 @@ def test_required_arg_end():
     state = State(source)
     with pytest.raises(UnexpectedEOF) as excinfo:
         state.run(parse_required_arg, name="test")
+    assert "Missing required argument for `test`" in excinfo.value.msg
+
+
+def test_parse_args():
+    source = "{arg1}{arg2}"
+    state = State(source)
+    assert parse_args(state, name="test", params="!") == ["arg1"]
+
+
+def test_parse_args_optional():
+    source = "{arg1}[arg2]"
+    state = State(source)
+    assert parse_args(state, name="test", params="!?") == ["arg1", "arg2"]
+
+
+def test_parse_args_optional_whitespace():
+    source = "  {  arg1  }  [  arg2  ]"
+    state = State(source)
+    assert parse_args(state, name="test", params="!?") == ["  arg1  ", "  arg2  "]
+
+
+def test_parse_args_optional_missing():
+    source = "{arg1}{arg2}"
+    state = State(source)
+    assert parse_args(state, name="test", params="!?!") == ["arg1", None, "arg2"]
+
+
+def test_parse_args_missing():
+    source = "{arg1}{arg2}"
+    state = State(source)
+    with pytest.raises(UnexpectedEOF) as excinfo:
+        parse_args(state, name="test", params="!!!")
     assert "Missing required argument for `test`" in excinfo.value.msg

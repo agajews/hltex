@@ -90,6 +90,13 @@ def test_parse_group_control_both_args_nested_bracket():
     assert source[state.pos] == "1"
 
 
+def test_parse_group_control_both_args_nested_bracket_escaped():
+    source = "some\\thi{ni{ni}}\\[ni{ni}ng\\]]123"
+    state = State(source)
+    assert state.run(parse_group, end="]") == "some\\thi{ni{ni}}\\[ni{ni}ng\\]"
+    assert source[state.pos] == "1"
+
+
 def test_parse_group_control_both_args_nested_newline():
     source = "some\\thi\n\n{ni{ni}\n\n}[ni{\n\nni}]ng}123"
     state = State(source)
