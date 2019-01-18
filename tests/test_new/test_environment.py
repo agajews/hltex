@@ -181,3 +181,29 @@ def test_custom_environment_not_eof():
     print(repr(res))
     assert res == "\\begin{itemize}\\item \\ Hey\\end{itemize}\n"
     assert source[state.pos] == "1"
+
+
+def test_custom_environment_block():
+    source = ":\n  Hey\n  Hey again\n123"
+    state = State(source)
+
+    def translate_fn(_state, body):
+        return "\\begin{itemize}\\item %s\\end{itemize}" % body
+
+    res = parse_custom_environment(state, Environment("test", translate_fn, ""), 0)
+    print(repr(res))
+    assert res == "\\begin{itemize}\\item \nHey\nHey again\n\\end{itemize}\n"
+    assert source[state.pos] == "1"
+
+
+def test_custom_environment_block_eof():
+    source = ":\n  Hey\n  Hey again"
+    state = State(source)
+
+    def translate_fn(_state, body):
+        return "\\begin{itemize}\\item %s\\end{itemize}" % body
+
+    res = parse_custom_environment(state, Environment("test", translate_fn, ""), 0)
+    print(repr(res))
+    assert res == "\\begin{itemize}\\item \nHey\nHey again\n\\end{itemize}\n"
+    assert state.pos == len(source)

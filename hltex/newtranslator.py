@@ -376,7 +376,7 @@ def parse_block(state, preamble=False):
 
 def translate(source):
     state = State(source)
-    res = state.run(parse_block)
+    res = parse_block(state, preamble=True)
     return res
 
 
