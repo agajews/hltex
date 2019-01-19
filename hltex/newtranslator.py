@@ -34,6 +34,11 @@ def parse_control_name(state):
     name = parse_while(state, pred=str.isalpha)
     if not name:
         name = increment(state)
+    assert (
+        state.finished()
+        or not str.isalpha(state.text[state.pos])
+        or not str.isalpha(state.text[state.pos - 1])
+    )
     return name
 
 
@@ -58,7 +63,9 @@ def parse_comment(state):
         EOF if there is no following newline)
     """
     assert state.text[state.pos - 1] == "%"
-    return "%" + parse_until(state, lambda c: c == "\n")
+    res = "%" + parse_until(state, lambda c: c == "\n")
+    assert state.finished() or state.text[state.pos] == "\n"
+    return res
 
 
 def parse_group(state, end):
@@ -71,24 +78,26 @@ def parse_group(state, end):
     body = parse_until(state, pred=lambda c: c in "{}\\%" + end)
     if state.finished():
         raise UnexpectedEOF("Missing closing `{}`".format(end))
+    if state.text[state.pos] == end:
+        increment(state)
+        assert state.text[state.pos - 1] == end
+        return body
+    if state.text[state.pos] == "}":
+        raise InvalidSyntax("Unexpected `}`")
     if state.text[state.pos] == "{":
         increment(state)
         body += "{" + parse_group(state, end="}") + "}"
-        return body + parse_group(state, end)
-    if state.text[state.pos] == "\\":
+    elif state.text[state.pos] == "\\":
         increment(state)
         body += parse_arg_control(state)
-        return body + parse_group(state, end)
-    if state.text[state.pos] == end:
-        increment(state)
-        return body
-    if state.text[state.pos] == "%":
+    elif state.text[state.pos] == "%":
         increment(state)
         body += parse_comment(state)
-        return body + parse_group(state, end)
-    if state.text[state.pos] == "}":
-        raise InvalidSyntax("Unexpected `}`")
-    raise InternalError()
+    else:
+        raise InternalError()
+    res = body + parse_group(state, end)
+    assert state.text[state.pos - 1] == end
+    return res
 
 
 def parse_optional_arg(state):
@@ -103,7 +112,9 @@ def parse_optional_arg(state):
         state.pos = start
         return None
     increment(state)
-    return parse_group(state, end="]")
+    res = parse_group(state, end="]")
+    assert state.text[state.pos - 1] == "]"
+    return res
 
 
 def parse_required_arg(state, name, raw=False):
@@ -119,9 +130,14 @@ def parse_required_arg(state, name, raw=False):
     increment(state)
     if raw:
         body = parse_while(state, lambda c: c != "}")
+        if state.finished():
+            raise UnexpectedEOF("Missing closing `}}` for `{}`".format(name))
         increment(state)
+        assert state.text[state.pos - 1] == "}"
         return body
-    return parse_group(state, end="}")
+    res = parse_group(state, end="}")
+    assert state.text[state.pos - 1] == "}"
+    return res
 
 
 def parse_args(state, name, params):
@@ -142,6 +158,7 @@ def parse_args(state, name, params):
         else:
             raise InternalError()
         args.append(arg)
+    assert not params or state.text[state.pos - 1] in "]}"
     return args
 
 
@@ -149,7 +166,8 @@ def parse_optional_argstr(state):
     """
     precondition: `state.pos` is somewhere an optional argstr (typically would be called
         from the first character following the opening bracket)
-    postcondition: `state.pos` is at the first character following the closing brace
+    postcondition: `state.pos` is at the first character following the closing bracket,
+        or where it started if the line ends before it finds it
     """
     start = state.pos
     body = parse_until(state, pred=lambda c: c in "\n{}\\[]%")
@@ -193,6 +211,7 @@ def parse_argstr(state):
     if state.text[state.pos] == "{":
         increment(state)
         body += "{" + parse_group(state, end="}") + "}"
+        assert state.text[state.pos - 1] == "}"
         return body + parse_argstr(state)
     if state.text[state.pos] == "[":
         increment(state)
@@ -201,6 +220,7 @@ def parse_argstr(state):
             state.pos = start
             return ""
         body += "[" + res + "]"
+        assert state.text[state.pos - 1] == "]"
         return body + parse_argstr(state)
     raise InternalError()
 
@@ -293,15 +313,17 @@ def parse_raw_block(state, outer_indent_level):
     if state.text[state.pos] == "\n":
         start = state.pos
         increment(state)
-        if line_is_empty(state):
-            return body + "\n" + parse_raw_block(state, outer_indent_level)
+        empty = parse_empty(state)
+        if state.finished():
+            state.pos = start
+            return body
         indent_level = calc_indent_level(state)
         if indent_level < outer_indent_level:
             state.pos = start
             return body
         if indent_level > outer_indent_level:
             raise UnexpectedIndentation("Indentation should only follow environments")
-        return body + "\n" + parse_raw_block(state, outer_indent_level)
+        return body + "\n" + empty + parse_raw_block(state, outer_indent_level)
     raise InternalError()
 
 
@@ -369,7 +391,9 @@ def parse_document(state):
     state.in_document = True
     document = "\n" + parse_block(state)
     return postprocess_block(
-        latex_env(state, "document", "", preprocess_block(document)), state, 0
+        latex_env(state, "document", "", preprocess_block(document), indent=False),
+        state,
+        0,
     )
 
 
@@ -383,18 +407,22 @@ def parse_block_newline(state, outer_indent_level, preamble=False):
     increment(state)
     if preamble and state.text[state.pos : state.pos + 3] == "===":
         return "\n" + parse_document(state)
-    if line_is_empty(state):
-        return "\n" + parse_block_body(
-            state, outer_indent_level=outer_indent_level, preamble=preamble
-        )
+    empty = parse_empty(state)
+    if state.finished():
+        state.pos = start
+        return ""
     indent_level = calc_indent_level(state)
     if indent_level < outer_indent_level:
         state.pos = start
         return ""
     if indent_level > outer_indent_level:
         raise UnexpectedIndentation("Indentation should only follow environments")
-    return "\n" + parse_block_body(
-        state, outer_indent_level=outer_indent_level, preamble=preamble
+    return (
+        "\n"
+        + empty
+        + parse_block_body(
+            state, outer_indent_level=outer_indent_level, preamble=preamble
+        )
     )
 
 

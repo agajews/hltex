@@ -15,8 +15,8 @@ def test_parse():
 def test_newline():
     source = "something\n"
     state = State(source)
-    assert state.run(parse_block) == "something\n"
-    assert state.pos == len(source)
+    assert state.run(parse_block) == "something"
+    assert source[state.pos] == "\n"
 
 
 def test_indented():
@@ -29,15 +29,15 @@ def test_indented():
 def test_indented_newline():
     source = "    some{thi}ng\n"
     state = State(source)
-    assert state.run(parse_block) == "    some{thi}ng\n"
-    assert state.pos == len(source)
+    assert state.run(parse_block) == "    some{thi}ng"
+    assert source[state.pos] == "\n"
 
 
 def test_indented_newline_empty():
     source = "    some{thi}ng\n  "
     state = State(source)
-    assert state.run(parse_block) == "    some{thi}ng\n  "
-    assert state.pos == len(source)
+    assert state.run(parse_block) == "    some{thi}ng"
+    assert source[state.pos] == "\n"
 
 
 def test_indented_multiline():
@@ -45,8 +45,8 @@ def test_indented_multiline():
     state = State(source)
     res = state.run(parse_block)
     print(res)
-    assert res == "    some{thi}ng\n    another\\thi{ng}\n"
-    assert state.pos == len(source)
+    assert res == "    some{thi}ng\n    another\\thi{ng}"
+    assert source[state.pos] == "\n"
 
 
 def test_indented_multiline_empty():
@@ -54,8 +54,8 @@ def test_indented_multiline_empty():
     state = State(source)
     res = state.run(parse_block)
     print(res)
-    assert res == "    some{thi}ng\n   \n    another\\thi{ng}\n"
-    assert state.pos == len(source)
+    assert res == "    some{thi}ng\n   \n    another\\thi{ng}"
+    assert source[state.pos] == "\n"
 
 
 def test_eof():
@@ -140,7 +140,7 @@ def test_indented_not_end():
 def test_indented_not_end_empty():
     source = "    some\\thi[ni]{ni}ng\n   \n  \n123"
     state = State(source)
-    assert state.run(parse_block) == "    some\\thi[ni]{ni}ng\n   \n  "
+    assert state.run(parse_block) == "    some\\thi[ni]{ni}ng"
     assert source[state.pos] == "\n"
 
 

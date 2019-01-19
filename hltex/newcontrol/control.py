@@ -26,6 +26,7 @@ class Environment:
         return self.translate_fn(state, body, *args)
 
 
-def latex_env(state, name, argstr, body):
-    body = indent_body(body, state)
+def latex_env(state, name, argstr, body, indent=True):
+    if indent:
+        body = indent_body(body, state)
     return "\\begin{%s}%s%s\\end{%s}" % (name, argstr, body, name)

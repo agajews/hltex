@@ -66,3 +66,33 @@ def test_no_beginning_newline():
     assert res == dedent(
         "\\documentclass{article}\n\\begin{document}\nHi!\n\\end{document}"
     )
+
+
+def test_translate_spacing():
+    source = dedent(
+        """
+        \\documentclass{article}
+        ===
+        \\eq:
+            f(x) = 3x
+
+        \\eq:
+            g(x) = 4x
+        """
+    )
+    res = translate(source)
+    print(res)
+    print(repr(res))
+    assert res == dedent(
+        """
+        \\documentclass{article}
+        \\begin{document}
+        \\begin{eq}
+            f(x) = 3x
+        \\end{eq}
+
+        \\begin{eq}
+            g(x) = 4x
+        \\end{eq}
+        \\end{document}"""
+    )

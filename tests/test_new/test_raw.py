@@ -55,13 +55,55 @@ def test_block():
 
 
 def test_block_eof():
-    source = ":\n    something\n"
+    source = ":\n    something"
+    state = State(source)
+    increment(state)
+    assert parse_raw_environment_body(state, outer_indent_level=0) == "\n    something"
+    assert state.pos == len(source)
+
+
+def test_block_eof_multiline():
+    source = ":\n    something\n    something else"
     state = State(source)
     increment(state)
     assert (
-        parse_raw_environment_body(state, outer_indent_level=0) == "\n    something\n"
+        parse_raw_environment_body(state, outer_indent_level=0)
+        == "\n    something\n    something else"
     )
     assert state.pos == len(source)
+
+
+def test_block_multiline_empty_eof():
+    source = ":\n    something\n    something else\n  \n"
+    state = State(source)
+    increment(state)
+    assert (
+        parse_raw_environment_body(state, outer_indent_level=0)
+        == "\n    something\n    something else"
+    )
+    assert source[state.pos] == "\n"
+
+
+def test_block_multiline_empty_eof_no_newline():
+    source = ":\n    something\n    something else\n  "
+    state = State(source)
+    increment(state)
+    assert (
+        parse_raw_environment_body(state, outer_indent_level=0)
+        == "\n    something\n    something else"
+    )
+    assert source[state.pos] == "\n"
+
+
+def test_block_multiline_empty_eof_more_after():
+    source = ":\n    something\n    something else\n  \n123"
+    state = State(source)
+    increment(state)
+    assert (
+        parse_raw_environment_body(state, outer_indent_level=0)
+        == "\n    something\n    something else"
+    )
+    assert source[state.pos] == "\n"
 
 
 def test_block_multiline():

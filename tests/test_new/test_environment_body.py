@@ -68,15 +68,26 @@ def test_indented_multiline():
     assert state.pos == len(source)
 
 
+def test_indented_multiline_newline():
+    source = ":\n    something\n    something else\n"
+    state = State(source)
+    increment(state)
+    assert (
+        state.run(parse_environment_body, outer_indent_level=0)
+        == "\n    something\n    something else"
+    )
+    assert source[state.pos] == "\n"
+
+
 def test_indented_multiline_empty():
     source = ":\n    something\n    something else\n   \n  "
     state = State(source)
     increment(state)
     assert (
         state.run(parse_environment_body, outer_indent_level=0)
-        == "\n    something\n    something else\n   \n  "
+        == "\n    something\n    something else"
     )
-    assert state.pos == len(source)
+    assert source[state.pos] == "\n"
 
 
 def test_indented_multiline_empty_not_eof():
@@ -85,5 +96,5 @@ def test_indented_multiline_empty_not_eof():
     increment(state)
     res = state.run(parse_environment_body, outer_indent_level=0)
     print(repr(res))
-    assert res == "\n    something\n    something else\n   \n  "
+    assert res == "\n    something\n    something else"
     assert source[state.pos] == "\n"

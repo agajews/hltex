@@ -9,24 +9,49 @@ def test_parse():
     source = "{arg1}{arg2}"
     state = State(source)
     assert parse_args(state, name="test", params="!") == ["arg1"]
+    assert state.pos == 6
+
+
+def test_parse_not_eof():
+    source = "{arg1}{arg2} 123"
+    state = State(source)
+    assert parse_args(state, name="test", params="!!") == ["arg1", "arg2"]
+    assert source[state.pos] == " "
+
+
+def test_none():
+    source = "123"
+    state = State(source)
+    assert parse_args(state, name="test", params="") == []
+    assert state.pos == 0
+
+
+def test_none_eof():
+    source = ""
+    state = State(source)
+    assert parse_args(state, name="test", params="") == []
+    assert state.pos == 0
 
 
 def test_optional():
     source = "{arg1}[arg2]"
     state = State(source)
     assert parse_args(state, name="test", params="!?") == ["arg1", "arg2"]
+    assert state.pos == len(source)
 
 
 def test_optional_whitespace():
     source = "  {  arg1  }  [  arg2  ]"
     state = State(source)
     assert parse_args(state, name="test", params="!?") == ["  arg1  ", "  arg2  "]
+    assert state.pos == len(source)
 
 
 def test_optional_missing():
     source = "{arg1}{arg2}"
     state = State(source)
     assert parse_args(state, name="test", params="!?!") == ["arg1", None, "arg2"]
+    assert state.pos == len(source)
 
 
 def test_missing():

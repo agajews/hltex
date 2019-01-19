@@ -19,7 +19,22 @@ def test_raw():
     assert source[state.pos] == "1"
 
 
+def test_raw_eof():
+    source = "{something}"
+    state = State(source)
+    assert state.run(parse_required_arg, name="test", raw=True) == "something"
+    assert state.pos == len(source)
+
+
 def test_raw_missing():
+    source = "{something"
+    state = State(source)
+    with pytest.raises(UnexpectedEOF) as excinfo:
+        state.run(parse_required_arg, name="test", raw=True)
+    assert "Missing closing `}`" in excinfo.value.msg
+
+
+def test_raw_not_missing():
     source = "{somethi{ng}123"
     state = State(source)
     assert state.run(parse_required_arg, name="test", raw=True) == "somethi{ng"
