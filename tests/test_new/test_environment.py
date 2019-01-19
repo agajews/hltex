@@ -94,6 +94,24 @@ def test_parse_environment_body():
     assert source[state.pos] == "\n"
 
 
+def test_parse_environment_body_group():
+    source = "some{\nstuff\n}thing\n123"
+    state = State(source)
+    res = state.run(parse_environment_body, outer_indent_level=0)
+    print(repr(res))
+    assert res == "some{\nstuff\n}thing"
+    assert source[state.pos] == "\n"
+
+
+def test_parse_environment_body_comment():
+    source = "some%thing\n123"
+    state = State(source)
+    res = state.run(parse_environment_body, outer_indent_level=0)
+    print(repr(res))
+    assert res == "some%thing"
+    assert source[state.pos] == "\n"
+
+
 def test_parse_environment_body_eof():
     source = "something"
     state = State(source)

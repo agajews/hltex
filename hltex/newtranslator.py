@@ -242,7 +242,7 @@ def parse_custom_environment(state, environment, outer_indent_level):
     if not state.text[state.pos] == ":":
         raise InvalidSyntax("Environments must be followed by colons")
     increment(state)
-    body = parse_environment_body(state, outer_indent_level=outer_indent_level)
+    body = parse_environment_body(state, outer_indent_level)
     res = environment.translate(state, preprocess_block(body), args)
     return postprocess_block(res, state, outer_indent_level)
 
@@ -250,22 +250,19 @@ def parse_custom_environment(state, environment, outer_indent_level):
 def parse_oneliner(state, outer_indent_level):
     body = parse_until(state, pred=lambda c: c in "\\\n{}%")
 
-    if state.finished():
-        return body
-    if state.text[state.pos] == "\n":
-        increment(state)
+    if state.finished() or state.text[state.pos] == "\n":
         return body
     if state.text[state.pos] == "\\":
-        increment(state)
-        return body + parse_block_control(state, outer_indent_level=outer_indent_level)
+        body += parse_block_control(state, outer_indent_level)
+        return body + parse_oneliner(state, outer_indent_level)
     if state.text[state.pos] == "{":
         increment(state)
         body += "{" + parse_group(state, end="}") + "}"
-        return body + parse_block_body(state, outer_indent_level=outer_indent_level)
+        return body + parse_oneliner(state, outer_indent_level)
     if state.text[state.pos] == "%":
         increment(state)
         body += parse_comment(state)
-        return body + parse_block_body(state, outer_indent_level=outer_indent_level)
+        return body
     if state.text[state.pos] == "}":
         raise InvalidSyntax("Unexpected `}`")
     raise InternalError()
@@ -281,10 +278,7 @@ def parse_environment_body(state, outer_indent_level):
     if state.finished():
         raise UnexpectedEOF("Environment missing body")
     if state.text[state.pos] not in "\n%":  # TODO: parse one-liners better
-        # return parse_oneliner(state, outer_indent_level)
-        res = parse_until(state, pred=lambda c: c == "\n")
-        # increment(state)
-        return res
+        return parse_oneliner(state, outer_indent_level)
     comment = None
     if state.text[state.pos] == "%":
         increment(state)
@@ -342,7 +336,7 @@ def parse_block_newline(state, outer_indent_level, preamble=False):
     )
 
 
-def parse_block_control(state, outer_indent_level, preamble=False):
+def parse_block_control(state, outer_indent_level):
     """
     precondition: `state.pos` is at a backslash in a block
     postcondition: `state.pos` is either at the first character following the last
@@ -363,9 +357,7 @@ def parse_block_control(state, outer_indent_level, preamble=False):
         body = parse_native_control(
             state, name=name, outer_indent_level=outer_indent_level
         )
-    return body + parse_block_body(
-        state, outer_indent_level=outer_indent_level, preamble=preamble
-    )
+    return body
 
 
 def parse_block_body(state, outer_indent_level, preamble=False):
@@ -386,9 +378,8 @@ def parse_block_body(state, outer_indent_level, preamble=False):
         )
     if state.text[state.pos] == "\\":
         # increment(state)
-        return body + parse_block_control(
-            state, outer_indent_level=outer_indent_level, preamble=preamble
-        )
+        body += parse_block_control(state, outer_indent_level=outer_indent_level)
+        return body + parse_block_body(state, outer_indent_level, preamble)
     if state.text[state.pos] == "{":
         increment(state)
         body += "{" + parse_group(state, end="}") + "}"
@@ -430,5 +421,5 @@ def translate(source):
     return res
 
 
+# TODO: assert preconditions
 # TODO: raw blocks, arguments
-# TODO: comments
