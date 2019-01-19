@@ -52,7 +52,7 @@ def test_parse_native_control_one_liner():
     state = State(source)
     res = state.run(parse_native_control, name="something", outer_indent_level=0)
     print(repr(res))
-    assert res == "\\begin{something}{arg1}{arg2}some words\\end{something}\n"
+    assert res == "\\begin{something}{arg1}{arg2}some words\\end{something}"
     assert state.pos == len(source)
 
 
@@ -61,9 +61,9 @@ def test_parse_native_control_one_liner_newline():
     state = State(source)
     assert (
         state.run(parse_native_control, name="something", outer_indent_level=0)
-        == "\\begin{something}{arg1}{arg2}some words\\end{something}\n"
+        == "\\begin{something}{arg1}{arg2}some words\\end{something}"
     )
-    assert state.pos == len(source)
+    assert source[state.pos] == "\n"
 
 
 def test_parse_native_control_one_liner_newline_empty():
@@ -71,8 +71,8 @@ def test_parse_native_control_one_liner_newline_empty():
     state = State(source)
     res = state.run(parse_native_control, name="something", outer_indent_level=0)
     print(repr(res))
-    assert res == "\\begin{something}{arg1}{arg2}some words\\end{something}\n"
-    assert source[state.pos] == " "
+    assert res == "\\begin{something}{arg1}{arg2}some words\\end{something}"
+    assert source[state.pos] == "\n"
 
 
 def test_parse_native_control_env():
@@ -80,7 +80,7 @@ def test_parse_native_control_env():
     state = State(source)
     assert (
         state.run(parse_native_control, name="something", outer_indent_level=0)
-        == "\\begin{something}{arg1}{arg2}\n    some words\n\\end{something}\n"
+        == "\\begin{something}{arg1}{arg2}\n    some words\n\\end{something}"
     )
     assert state.pos == len(source)
 
@@ -91,7 +91,7 @@ def test_parse_environment_body():
     res = state.run(parse_environment_body, outer_indent_level=0)
     print(repr(res))
     assert res == "something"
-    assert state.pos == len(source)
+    assert source[state.pos] == "\n"
 
 
 def test_parse_environment_body_eof():
@@ -105,7 +105,7 @@ def test_parse_environment_body_command():
     source = "some\\thi{n}g\n"
     state = State(source)
     assert state.run(parse_environment_body, outer_indent_level=0) == "some\\thi{n}g"
-    assert state.pos == len(source)
+    assert source[state.pos] == "\n"
 
 
 def test_parse_environment_body_indented():
@@ -140,8 +140,8 @@ def test_parse_environment_body_indented_multiline_empty_not_eof():
     state = State(source)
     res = state.run(parse_environment_body, outer_indent_level=0)
     print(repr(res))
-    assert res == "\n    something\n    something else\n   \n  \n"
-    assert source[state.pos] == "1"
+    assert res == "\n    something\n    something else\n   \n  "
+    assert source[state.pos] == "\n"
 
 
 def test_custom_environment():
@@ -153,7 +153,7 @@ def test_custom_environment():
 
     res = parse_custom_environment(state, Environment("test", translate_fn, ""), 0)
     print(repr(res))
-    assert res == "\\begin{itemize}\\item \\ Hey\\end{itemize}\n"
+    assert res == "\\begin{itemize}\\item \\ Hey\\end{itemize}"
     assert state.pos == len(source)
 
 
@@ -166,8 +166,8 @@ def test_custom_environment_newline():
 
     res = parse_custom_environment(state, Environment("test", translate_fn, ""), 0)
     print(repr(res))
-    assert res == "\\begin{itemize}\\item \\ Hey\\end{itemize}\n"
-    assert state.pos == len(source)
+    assert res == "\\begin{itemize}\\item \\ Hey\\end{itemize}"
+    assert source[state.pos] == "\n"
 
 
 def test_custom_environment_not_eof():
@@ -179,8 +179,8 @@ def test_custom_environment_not_eof():
 
     res = parse_custom_environment(state, Environment("test", translate_fn, ""), 0)
     print(repr(res))
-    assert res == "\\begin{itemize}\\item \\ Hey\\end{itemize}\n"
-    assert source[state.pos] == "1"
+    assert res == "\\begin{itemize}\\item \\ Hey\\end{itemize}"
+    assert source[state.pos] == "\n"
 
 
 def test_custom_environment_block():
@@ -192,8 +192,8 @@ def test_custom_environment_block():
 
     res = parse_custom_environment(state, Environment("test", translate_fn, ""), 0)
     print(repr(res))
-    assert res == "\\begin{itemize}\\item \nHey\nHey again\n\\end{itemize}\n"
-    assert source[state.pos] == "1"
+    assert res == "\\begin{itemize}\\item \nHey\nHey again\n\\end{itemize}"
+    assert source[state.pos] == "\n"
 
 
 def test_custom_environment_block_eof():
@@ -205,5 +205,5 @@ def test_custom_environment_block_eof():
 
     res = parse_custom_environment(state, Environment("test", translate_fn, ""), 0)
     print(repr(res))
-    assert res == "\\begin{itemize}\\item \nHey\nHey again\n\\end{itemize}\n"
+    assert res == "\\begin{itemize}\\item \nHey\nHey again\n\\end{itemize}"
     assert state.pos == len(source)

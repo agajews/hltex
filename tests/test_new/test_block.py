@@ -15,6 +15,9 @@ def test_parse_block():
 def test_parse_block_newline():
     source = "something\n"
     state = State(source)
+    # import pdb
+
+    # pdb.set_trace()
     assert state.run(parse_block) == "something\n"
     assert state.pos == len(source)
 
@@ -117,22 +120,22 @@ def test_parse_block_control_both_args_newline():
 def test_parse_block_control_both_args_newline_not_indented():
     source = "    some\\thi\n    [\nni\n    ]{\nni\n}ng\n    123"
     state = State(source)
-    assert state.run(parse_block) == "    some\\thi\n    [\n"
-    assert source[state.pos] == "n"
+    assert state.run(parse_block) == "    some\\thi\n    ["
+    assert source[state.pos] == "\n"
 
 
 def test_parse_block_indented_not_end():
     source = "    some\\thi[ni]{ni}ng\n123"
     state = State(source)
-    assert state.run(parse_block) == "    some\\thi[ni]{ni}ng\n"
-    assert source[state.pos] == "1"
+    assert state.run(parse_block) == "    some\\thi[ni]{ni}ng"
+    assert source[state.pos] == "\n"
 
 
 def test_parse_block_indented_not_end_empty():
     source = "    some\\thi[ni]{ni}ng\n   \n  \n123"
     state = State(source)
-    assert state.run(parse_block) == "    some\\thi[ni]{ni}ng\n   \n  \n"
-    assert source[state.pos] == "1"
+    assert state.run(parse_block) == "    some\\thi[ni]{ni}ng\n   \n  "
+    assert source[state.pos] == "\n"
 
 
 def test_parse_block_nested():
@@ -142,7 +145,7 @@ def test_parse_block_nested():
     print(res)
     assert (
         res
-        == "\\begin{eq}\n  \\begin{split}\n    \\textbf{Hello}\n  \\end{split}\n\\end{eq}\n"
+        == "\\begin{eq}\n  \\begin{split}\n    \\textbf{Hello}\n  \\end{split}\n\\end{eq}"
     )
     assert state.pos == len(source)
 
@@ -154,7 +157,7 @@ def test_parse_block_nested_not_start():
     print(repr(res))
     assert (
         res
-        == "123\\begin{eq}\n  \\begin{split}\n    \\textbf{Hello}\n  \\end{split}\n\\end{eq}\n"
+        == "123\\begin{eq}\n  \\begin{split}\n    \\textbf{Hello}\n  \\end{split}\n\\end{eq}"
     )
     assert state.pos == len(source)
 
@@ -162,8 +165,8 @@ def test_parse_block_nested_not_start():
 def test_parse_block_control_both_args_spaced():
     source = "    some\\thi  {ni}  [ni]  ng\n123"
     state = State(source)
-    assert state.run(parse_block) == "    some\\thi  {ni}  [ni]  ng\n"
-    assert source[state.pos] == "1"
+    assert state.run(parse_block) == "    some\\thi  {ni}  [ni]  ng"
+    assert source[state.pos] == "\n"
 
 
 def test_parse_block_control_both_args_nested():
@@ -171,16 +174,16 @@ def test_parse_block_control_both_args_nested():
     state = State(source)
     assert (
         state.run(parse_block)
-        == "    some\\thi{\nni{\nni\n}\n}\n    [ni{\nni\n}]ng\n    more things\n"
+        == "    some\\thi{\nni{\nni\n}\n}\n    [ni{\nni\n}]ng\n    more things"
     )
-    assert source[state.pos] == "1"
+    assert source[state.pos] == "\n"
 
 
 def test_parse_block_control_both_args_nested_bracket_escaped():
     source = "    some\\thi{ni{ni}}\\[ni{ni}ng\\]\n123"
     state = State(source)
-    assert state.run(parse_block) == "    some\\thi{ni{ni}}\\[ni{ni}ng\\]\n"
-    assert source[state.pos] == "1"
+    assert state.run(parse_block) == "    some\\thi{ni{ni}}\\[ni{ni}ng\\]"
+    assert source[state.pos] == "\n"
 
 
 def test_parse_block_control_both_args_unexpected():
@@ -209,4 +212,27 @@ def test_parse_block_stacked():
         res
         == "\\begin{eq}\n  \\textbf{Hello}\n\\end{eq}\n\\begin{eq}\n  f(x)\n\\end{eq}\n123"
     )
+    assert state.pos == len(source)
+
+
+def test_parse_block_stacked_comment():
+    source = (
+        "\\eq: %something\n  \\textbf{Hello}%more\n  %something\n\\eq:\n  f(x)\n123"
+    )
+    state = State(source)
+    res = state.run(parse_block)
+    print(res)
+    assert (
+        res
+        == "\\begin{eq}\n  %something\n  \\textbf{Hello}%more\n  %something\n\\end{eq}\n\\begin{eq}\n  f(x)\n\\end{eq}\n123"
+    )
+    assert state.pos == len(source)
+
+
+def test_parse_block_onliner_stacked():
+    source = "\\eq: \\textbf{Hello}\n\\eq: f(x)\n123"
+    state = State(source)
+    res = state.run(parse_block)
+    print(res)
+    assert res == "\\begin{eq}\\textbf{Hello}\\end{eq}\n\\begin{eq}f(x)\\end{eq}\n123"
     assert state.pos == len(source)

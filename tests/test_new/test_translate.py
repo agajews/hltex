@@ -18,8 +18,7 @@ def test_translate():
         \\documentclass{article}
         \\begin{document}
             Hi!
-        \\end{document}
-        """
+        \\end{document}"""
     )
 
 
@@ -38,8 +37,7 @@ def test_translate_preamble():
         \\documentclass{article}
         \\begin{document}
         Hi!
-        \\end{document}
-        """
+        \\end{document}"""
     )
 
 
@@ -57,8 +55,7 @@ def test_translate_no_newline():
         \\documentclass{article}
         \\begin{document}
         Hi!
-        \\end{document}
-        """
+        \\end{document}"""
     )
 
 
@@ -67,5 +64,5 @@ def test_translate_no_beginning_newline():
     res = translate(source)
     print(repr(res))
     assert res == dedent(
-        "\\documentclass{article}\n\\begin{document}\nHi!\n\\end{document}\n"
+        "\\documentclass{article}\n\\begin{document}\nHi!\n\\end{document}"
     )

@@ -1,6 +1,6 @@
 import pytest
 
-from hltex.errors import InvalidSyntax, UnexpectedEOF
+from hltex.errors import UnexpectedEOF
 from hltex.newtranslator import parse_argstr
 from hltex.state import State
 
@@ -67,6 +67,13 @@ def test_parse_argstr_optional():
     state = State(source)
     assert state.run(parse_argstr) == "[something]"
     assert source[state.pos] == "1"
+
+
+def test_parse_argstr_optional_comment():
+    source = "{something}[somethi%]123\nng]123"
+    state = State(source)
+    assert state.run(parse_argstr) == "{something}"
+    assert source[state.pos] == "["
 
 
 def test_parse_argstr_optional_nested():

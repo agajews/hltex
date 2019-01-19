@@ -10,7 +10,7 @@ def test_preamble():
     state = State(source)
     res = parse_block(state, preamble=True)
     print(res)
-    assert res == "\\documentclass{article}\n\\begin{document}\nHey!\n\\end{document}\n"
+    assert res == "\\documentclass{article}\n\\begin{document}\nHey!\n\\end{document}"
 
 
 def test_preamble_missing_document():
@@ -42,7 +42,7 @@ def test_preamble_newline():
     state = State(source)
     res = parse_block(state, preamble=True)
     print(repr(res))
-    assert res == "\\documentclass{article}\n\\begin{document}\nHey!\n\\end{document}\n"
+    assert res == "\\documentclass{article}\n\\begin{document}\nHey!\n\\end{document}"
 
 
 def test_preamble_more_equals():
@@ -51,7 +51,7 @@ def test_preamble_more_equals():
     res = parse_block(state, preamble=True)
     print(repr(res))
     assert (
-        res == "\\documentclass{article}\n\\begin{document}\n===Hey!\n\\end{document}\n"
+        res == "\\documentclass{article}\n\\begin{document}\n===Hey!\n\\end{document}"
     )
 
 
@@ -62,7 +62,7 @@ def test_preamble_multiline():
     print(res)
     assert (
         res
-        == "\\documentclass{article}\n\\begin{document}\nHey!\nHey again!\n\\end{document}\n"
+        == "\\documentclass{article}\n\\begin{document}\nHey!\nHey again!\n\\end{document}"
     )
 
 
@@ -73,7 +73,7 @@ def test_preamble_envs():
     print(repr(res))
     assert (
         res
-        == "\\documentclass{article}\n\\begin{eq}\n    f(x)\n\\end{eq}\n\\begin{document}\n    Hey!\n    Hey again!\n\\end{document}\n"
+        == "\\documentclass{article}\n\\begin{eq}\n    f(x)\n\\end{eq}\n\\begin{document}\n    Hey!\n    Hey again!\n\\end{document}"
     )
 
 
@@ -84,5 +84,5 @@ def test_preamble_oneliners():
     print(repr(res))
     assert (
         res
-        == "\\documentclass{article}\n\\begin{eq}f(x)\\end{eq}\n\\begin{document}\nHey!\nHey again!\n\\end{document}\n"
+        == "\\documentclass{article}\n\\begin{eq}f(x)\\end{eq}\n\\begin{document}\nHey!\nHey again!\n\\end{document}"
     )

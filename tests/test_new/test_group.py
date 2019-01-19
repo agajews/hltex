@@ -110,3 +110,10 @@ def test_parse_group_control_both_args_unexpected():
     with pytest.raises(InvalidSyntax) as excinfo:
         state.run(parse_group, end="]")
     assert "Unexpected `}`" in excinfo.value.msg
+
+
+def test_parse_group_comment():
+    source = "some%thi\nng}123"
+    state = State(source)
+    assert state.run(parse_group, end="}") == "some%thi\nng"
+    assert source[state.pos] == "1"

@@ -15,7 +15,7 @@ def postprocess_block(res, state, outer_indent_level):
     res = lines[0]
     if len(lines) > 1:
         res += "\n" + textwrap.indent("\n".join(lines[1:]), indent_str)
-    return res + "\n"
+    return res
 
 
 def preprocess_block(body):
@@ -40,12 +40,12 @@ def parse_empty(state):
         next non-whitespace line
     """
     start = state.pos
-    body = state.run(parse_while, pred=iswhitespace)
+    body = parse_while(state, pred=iswhitespace)
     if state.finished():
         return body
     if state.text[state.pos] == "\n":
-        state.run(increment)
-        return body + "\n", parse_empty
+        increment(state)
+        return body + "\n" + parse_empty(state)
     state.pos = start
     return ""
 
@@ -94,7 +94,7 @@ def get_indent(state):
     returns: the indentation string of the current line
     """
     start = state.pos
-    indent = state.run(parse_while, pred=iswhitespace)
+    indent = parse_while(state, pred=iswhitespace)
     state.pos = start
     return indent
 
@@ -105,7 +105,7 @@ def line_is_empty(state):
     postcondition: `self.pos` is where it started
     """
     start = state.pos
-    state.run(parse_while, pred=iswhitespace)
+    parse_while(state, pred=iswhitespace)
     res = state.finished() or state.text[state.pos] == "\n"
     state.pos = start
     return res
@@ -120,7 +120,7 @@ def calc_indent_level(state):
     returns: the indentation level of the current line, in terms of `self.indent_str` units
     """
     assert not line_is_empty(state)
-    indent = state.run(get_indent)
+    indent = get_indent(state)
     if indent == "":
         return 0
     if state.indent_str is None:
