@@ -5,42 +5,42 @@ from hltex.newtranslator import parse_block
 from hltex.state import State
 
 
-def test_parse_block():
+def test_parse():
     source = "something"
     state = State(source)
     assert state.run(parse_block) == "something"
     assert state.pos == len(source)
 
 
-def test_parse_block_newline():
+def test_newline():
     source = "something\n"
     state = State(source)
     assert state.run(parse_block) == "something\n"
     assert state.pos == len(source)
 
 
-def test_parse_block_indented():
+def test_indented():
     source = "    some{thi}ng"
     state = State(source)
     assert state.run(parse_block) == "    some{thi}ng"
     assert state.pos == len(source)
 
 
-def test_parse_block_indented_newline():
+def test_indented_newline():
     source = "    some{thi}ng\n"
     state = State(source)
     assert state.run(parse_block) == "    some{thi}ng\n"
     assert state.pos == len(source)
 
 
-def test_parse_block_indented_newline_empty():
+def test_indented_newline_empty():
     source = "    some{thi}ng\n  "
     state = State(source)
     assert state.run(parse_block) == "    some{thi}ng\n  "
     assert state.pos == len(source)
 
 
-def test_parse_block_indented_multiline():
+def test_indented_multiline():
     source = "    some{thi}ng\n    another\\thi{ng}\n"
     state = State(source)
     res = state.run(parse_block)
@@ -49,7 +49,7 @@ def test_parse_block_indented_multiline():
     assert state.pos == len(source)
 
 
-def test_parse_block_indented_multiline_empty():
+def test_indented_multiline_empty():
     source = "    some{thi}ng\n   \n    another\\thi{ng}\n"
     state = State(source)
     res = state.run(parse_block)
@@ -58,7 +58,7 @@ def test_parse_block_indented_multiline_empty():
     assert state.pos == len(source)
 
 
-def test_parse_block_eof():
+def test_eof():
     source = ""
     state = State(source)
     res = state.run(parse_block)
@@ -67,7 +67,7 @@ def test_parse_block_eof():
     assert state.pos == len(source)
 
 
-def test_parse_block_indented_eof():
+def test_indented_eof():
     source = "    "
     state = State(source)
     res = state.run(parse_block)
@@ -76,7 +76,7 @@ def test_parse_block_indented_eof():
     assert state.pos == len(source)
 
 
-def test_parse_block_indented_empty():
+def test_indented_empty():
     source = "    \n   "
     state = State(source)
     res = state.run(parse_block)
@@ -85,35 +85,35 @@ def test_parse_block_indented_empty():
     assert state.pos == len(source)
 
 
-def test_parse_block_group_newline():
+def test_group_newline():
     source = "    some{\nthi\n}ng"
     state = State(source)
     assert state.run(parse_block) == "    some{\nthi\n}ng"
     assert state.pos == len(source)
 
 
-def test_parse_block_control_args():
+def test_control_args():
     source = "    some\\thi{ni}{ng}\n    123"
     state = State(source)
     assert state.run(parse_block) == "    some\\thi{ni}{ng}\n    123"
     assert state.pos == len(source)
 
 
-def test_parse_block_control_both_args():
+def test_control_both_args():
     source = "    some\\thi[ni]{ni}ng\n    123"
     state = State(source)
     assert state.run(parse_block) == "    some\\thi[ni]{ni}ng\n    123"
     assert state.pos == len(source)
 
 
-def test_parse_block_control_both_args_reversed():
+def test_control_both_args_reversed():
     source = "    some\\thi{ni}[ni]ng\n    123"
     state = State(source)
     assert state.run(parse_block) == "    some\\thi{ni}[ni]ng\n    123"
     assert state.pos == len(source)
 
 
-def test_parse_block_control_both_args_newline():
+def test_control_both_args_newline():
     source = "    some\\thi\n    [\n    ni\n    ]{\nni\n}ng\n    123"
     state = State(source)
     assert (
@@ -123,28 +123,28 @@ def test_parse_block_control_both_args_newline():
     assert state.pos == len(source)
 
 
-def test_parse_block_control_both_args_newline_not_indented():
+def test_control_both_args_newline_not_indented():
     source = "    some\\thi\n    [\nni\n    ]{\nni\n}ng\n    123"
     state = State(source)
     assert state.run(parse_block) == "    some\\thi\n    ["
     assert source[state.pos] == "\n"
 
 
-def test_parse_block_indented_not_end():
+def test_indented_not_end():
     source = "    some\\thi[ni]{ni}ng\n123"
     state = State(source)
     assert state.run(parse_block) == "    some\\thi[ni]{ni}ng"
     assert source[state.pos] == "\n"
 
 
-def test_parse_block_indented_not_end_empty():
+def test_indented_not_end_empty():
     source = "    some\\thi[ni]{ni}ng\n   \n  \n123"
     state = State(source)
     assert state.run(parse_block) == "    some\\thi[ni]{ni}ng\n   \n  "
     assert source[state.pos] == "\n"
 
 
-def test_parse_block_nested():
+def test_nested():
     source = "\\eq:\n  \\split:\n    \\textbf{Hello}"
     state = State(source)
     res = state.run(parse_block)
@@ -156,7 +156,7 @@ def test_parse_block_nested():
     assert state.pos == len(source)
 
 
-def test_parse_block_nested_not_start():
+def test_nested_not_start():
     source = "123\\eq:\n  \\split:\n    \\textbf{Hello}"
     state = State(source)
     res = state.run(parse_block)
@@ -168,14 +168,14 @@ def test_parse_block_nested_not_start():
     assert state.pos == len(source)
 
 
-def test_parse_block_control_both_args_spaced():
+def test_control_both_args_spaced():
     source = "    some\\thi  {ni}  [ni]  ng\n123"
     state = State(source)
     assert state.run(parse_block) == "    some\\thi  {ni}  [ni]  ng"
     assert source[state.pos] == "\n"
 
 
-def test_parse_block_control_both_args_nested():
+def test_control_both_args_nested():
     source = "    some\\thi{\nni{\nni\n}\n}\n    [ni{\nni\n}]ng\n    more things\n123"
     state = State(source)
     assert (
@@ -185,14 +185,14 @@ def test_parse_block_control_both_args_nested():
     assert source[state.pos] == "\n"
 
 
-def test_parse_block_control_both_args_nested_bracket_escaped():
+def test_control_both_args_nested_bracket_escaped():
     source = "    some\\thi{ni{ni}}\\[ni{ni}ng\\]\n123"
     state = State(source)
     assert state.run(parse_block) == "    some\\thi{ni{ni}}\\[ni{ni}ng\\]"
     assert source[state.pos] == "\n"
 
 
-def test_parse_block_control_both_args_unexpected():
+def test_control_both_args_unexpected():
     source = "some\\thi{ni{ni}}[ni{ni}}]ng}123"
     state = State(source)
     with pytest.raises(InvalidSyntax) as excinfo:
@@ -200,7 +200,7 @@ def test_parse_block_control_both_args_unexpected():
     assert "Unexpected `}`" in excinfo.value.msg
 
 
-def test_parse_block_not_eof():
+def test_not_eof():
     source = "\\eq:\n  \\textbf{Hello}\n123"
     state = State(source)
     res = state.run(parse_block)
@@ -209,7 +209,7 @@ def test_parse_block_not_eof():
     assert state.pos == len(source)
 
 
-def test_parse_block_stacked():
+def test_stacked():
     source = "\\eq:\n  \\textbf{Hello}\n\\eq:\n  f(x)\n123"
     state = State(source)
     res = state.run(parse_block)
@@ -221,7 +221,7 @@ def test_parse_block_stacked():
     assert state.pos == len(source)
 
 
-def test_parse_block_stacked_comment():
+def test_stacked_comment():
     source = (
         "\\eq: %something\n  \\textbf{Hello}%more\n  %something\n\\eq:\n  f(x)\n123"
     )
@@ -235,7 +235,7 @@ def test_parse_block_stacked_comment():
     assert state.pos == len(source)
 
 
-def test_parse_block_onliner_stacked():
+def test_onliner_stacked():
     source = "\\eq: \\textbf{Hello}\n\\eq: f(x)\n123"
     state = State(source)
     res = state.run(parse_block)

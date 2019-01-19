@@ -26,6 +26,7 @@ def parse_control_name(state):
     raises: UnexpectedEOF if there is no character following the name of the control
         sequence
     """
+    assert state.text[state.pos - 1] == "\\"
     if state.finished():
         raise UnexpectedEOF(
             "Unescaped backslashes must be followed by at least one character"
@@ -43,6 +44,7 @@ def parse_arg_control(state):
     command name (for native commands) or at the first character following the last
     argument (for custom commands)
     """
+    assert state.text[state.pos - 1] == "\\"
     name = parse_control_name(state)
     if name in state.commands:
         return parse_custom_command(state, command=state.commands[name])
@@ -55,6 +57,7 @@ def parse_comment(state):
     postcondition: `state.pos` is at the newline following the percent sign (or at the
         EOF if there is no following newline)
     """
+    assert state.text[state.pos - 1] == "%"
     return "%" + parse_until(state, lambda c: c == "\n")
 
 
@@ -254,6 +257,11 @@ def parse_custom_environment(state, environment, outer_indent_level):
 
 
 def parse_oneliner(state, outer_indent_level):
+    """
+    precondition: `state.pos` is somewhere inside a one-liner (typically would be
+        called from the first character after the colon)
+    postcondition: `state.pos` is at the end of the line, or at `len(state.text)`
+    """
     body = parse_until(state, pred=lambda c: c in "\\\n{}%")
 
     if state.finished() or state.text[state.pos] == "\n":
@@ -301,6 +309,7 @@ def parse_raw_environment_body(state, outer_indent_level):
     """
     precondition: `state.pos` is at the first character following the colon
     """
+    assert state.text[state.pos - 1] == ":"
     parse_while(state, pred=iswhitespace)
     if state.finished():
         raise UnexpectedEOF("Environment missing body")
@@ -321,6 +330,7 @@ def parse_environment_body(state, outer_indent_level):
     postcondition: `state.pos` is at the next non-empty line following the indented
         block, or at the end of the line for one-liners
     """
+    assert state.text[state.pos - 1] == ":"
     parse_while(state, pred=iswhitespace)
     if state.finished():
         raise UnexpectedEOF("Environment missing body")
@@ -344,6 +354,10 @@ def parse_environment_body(state, outer_indent_level):
 
 
 def parse_document(state):
+    """
+    precondition: `state.pos` is at the first =
+    postcondition: `state.pos` is at the end of the file
+    """
     parse_while(state, pred=lambda c: c == "=")
     if state.finished():
         raise UnexpectedEOF("Missing document body")
@@ -364,6 +378,7 @@ def parse_block_newline(state, outer_indent_level, preamble=False):
     precondition: `state.pos` is at a newline in a block
     postcondition: `state.pos` is at the start of the next line
     """
+    assert state.text[state.pos] == "\n"
     start = state.pos
     increment(state)
     if preamble and state.text[state.pos : state.pos + 3] == "===":
@@ -390,6 +405,7 @@ def parse_block_control(state, outer_indent_level):
         argument's closing brace, or at the start of the next non-empty line for
         indented environments, or at the start of the next line for one-liners
     """
+    assert state.text[state.pos] == "\\"
     increment(state)
     name = parse_control_name(state)
     if name in state.commands:

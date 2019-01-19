@@ -22,7 +22,7 @@ def test_translate():
     )
 
 
-def test_translate_preamble():
+def test_preamble():
     source = dedent(
         """
         \\documentclass{article}
@@ -41,7 +41,7 @@ def test_translate_preamble():
     )
 
 
-def test_translate_no_newline():
+def test_no_newline():
     source = dedent(
         """
         \\documentclass{article}
@@ -59,7 +59,7 @@ def test_translate_no_newline():
     )
 
 
-def test_translate_no_beginning_newline():
+def test_no_beginning_newline():
     source = "\\documentclass{article}\n===\nHi!"
     res = translate(source)
     print(repr(res))
