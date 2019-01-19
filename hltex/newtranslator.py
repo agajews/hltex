@@ -489,6 +489,8 @@ def parse_block(state, preamble=False):
     """
     precondition: `state.pos` is at the start of a line in the block (typically
         `parse_block` should be called from the line after a colon)
+    postcondition: `state.pos` is at the newline after the block; if there are empty
+        lines after the block, `state.pos` is before them
     """
     body = parse_empty(state)
     if line_is_empty(state):
