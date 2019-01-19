@@ -271,7 +271,10 @@ def parse_custom_environment(state, environment, outer_indent_level):
     if not state.text[state.pos] == ":":
         raise InvalidSyntax("Environments must be followed by colons")
     increment(state)
-    body = parse_environment_body(state, outer_indent_level)
+    if environment.raw:
+        body = parse_raw_environment_body(state, outer_indent_level)
+    else:
+        body = parse_environment_body(state, outer_indent_level)
     res = environment.translate(state, preprocess_block(body), args)
     return postprocess_block(res, state, outer_indent_level)
 

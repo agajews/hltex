@@ -16,10 +16,11 @@ class Command:
 
 
 class Environment:
-    def __init__(self, name, translate_fn, params=""):
+    def __init__(self, name, translate_fn, params="", raw=False):
         self.name = name
         self.translate_fn = translate_fn
         self.params = params
+        self.raw = raw
         assert all([p in "!?x" for p in params])
 
     def translate(self, state, body, args):

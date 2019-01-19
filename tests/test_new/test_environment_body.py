@@ -1,4 +1,7 @@
+import pytest
+
 from hltex.context import increment
+from hltex.errors import InvalidSyntax
 from hltex.newtranslator import parse_environment_body
 from hltex.state import State
 
@@ -21,6 +24,15 @@ def test_group():
     print(repr(res))
     assert res == "some{\nstuff\n}thing"
     assert source[state.pos] == "\n"
+
+
+def test_unexpected():
+    source = ":some}thing\n123"
+    state = State(source)
+    increment(state)
+    with pytest.raises(InvalidSyntax) as excinfo:
+        state.run(parse_environment_body, outer_indent_level=0)
+    assert "Unexpected `}`" in excinfo.value.msg
 
 
 def test_comment():
