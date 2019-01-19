@@ -97,6 +97,27 @@ def test_required_arg():
     assert source[state.pos] == "1"
 
 
+def test_required_arg_raw():
+    source = "{something}123"
+    state = State(source)
+    assert state.run(parse_required_arg, name="test", raw=True) == "something"
+    assert source[state.pos] == "1"
+
+
+def test_required_arg_raw_missing():
+    source = "{somethi{ng}123"
+    state = State(source)
+    assert state.run(parse_required_arg, name="test", raw=True) == "somethi{ng"
+    assert source[state.pos] == "1"
+
+
+def test_required_arg_raw_newline():
+    source = "{somethi\nng}123"
+    state = State(source)
+    assert state.run(parse_required_arg, name="test", raw=True) == "somethi\nng"
+    assert source[state.pos] == "1"
+
+
 def test_required_arg_whitespace():
     source = "  {  something  }  123"
     state = State(source)

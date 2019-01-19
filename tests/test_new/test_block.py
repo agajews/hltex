@@ -1,6 +1,6 @@
 import pytest
 
-from hltex.errors import InvalidSyntax, UnexpectedEOF
+from hltex.errors import InvalidSyntax
 from hltex.newtranslator import parse_block
 from hltex.state import State
 
@@ -15,9 +15,6 @@ def test_parse_block():
 def test_parse_block_newline():
     source = "something\n"
     state = State(source)
-    # import pdb
-
-    # pdb.set_trace()
     assert state.run(parse_block) == "something\n"
     assert state.pos == len(source)
 
@@ -49,6 +46,15 @@ def test_parse_block_indented_multiline():
     res = state.run(parse_block)
     print(res)
     assert res == "    some{thi}ng\n    another\\thi{ng}\n"
+    assert state.pos == len(source)
+
+
+def test_parse_block_indented_multiline_empty():
+    source = "    some{thi}ng\n   \n    another\\thi{ng}\n"
+    state = State(source)
+    res = state.run(parse_block)
+    print(res)
+    assert res == "    some{thi}ng\n   \n    another\\thi{ng}\n"
     assert state.pos == len(source)
 
 

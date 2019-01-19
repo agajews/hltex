@@ -9,7 +9,7 @@ class Command:
         self.name = name
         self.translate_fn = translate_fn
         self.params = params
-        assert all([p in "!?" for p in params])
+        assert all([p in "!?x" for p in params])
 
     def translate(self, state, args):
         return self.translate_fn(state, *args)
@@ -20,7 +20,7 @@ class Environment:
         self.name = name
         self.translate_fn = translate_fn
         self.params = params
-        assert all([p in "!?" for p in params])
+        assert all([p in "!?x" for p in params])
 
     def translate(self, state, body, args):
         return self.translate_fn(state, body, *args)

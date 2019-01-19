@@ -103,7 +103,7 @@ def parse_optional_arg(state):
     return parse_group(state, end="]")
 
 
-def parse_required_arg(state, name):
+def parse_required_arg(state, name, raw=False):
     """
     precondition: `state.pos` is at the first character following the previous argument
     postcondition: `state.pos` is at the first character following the closing brace
@@ -114,6 +114,10 @@ def parse_required_arg(state, name):
     if not state.text[state.pos] == "{":
         raise MissingArgument("Missing required argument for `{}`".format(name))
     increment(state)
+    if raw:
+        body = parse_while(state, lambda c: c != "}")
+        increment(state)
+        return body
     return parse_group(state, end="}")
 
 
@@ -130,6 +134,8 @@ def parse_args(state, name, params):
             arg = parse_optional_arg(state)
         elif param == "!":
             arg = parse_required_arg(state, name=name)
+        elif param == "x":
+            arg = parse_required_arg(state, name=name, raw=True)
         else:
             raise InternalError()
         args.append(arg)
@@ -268,6 +274,47 @@ def parse_oneliner(state, outer_indent_level):
     raise InternalError()
 
 
+def parse_raw_block(state, outer_indent_level):
+    """
+    precondition: `state.pos` is somewhere inside a raw block
+    """
+    body = parse_until(state, pred=lambda c: c == "\n")
+
+    if state.finished():
+        return body
+    if state.text[state.pos] == "\n":
+        start = state.pos
+        increment(state)
+        if line_is_empty(state):
+            return body + "\n" + parse_raw_block(state, outer_indent_level)
+        indent_level = calc_indent_level(state)
+        if indent_level < outer_indent_level:
+            state.pos = start
+            return body
+        if indent_level > outer_indent_level:
+            raise UnexpectedIndentation("Indentation should only follow environments")
+        return body + "\n" + parse_raw_block(state, outer_indent_level)
+    raise InternalError()
+
+
+def parse_raw_environment_body(state, outer_indent_level):
+    """
+    precondition: `state.pos` is at the first character following the colon
+    """
+    parse_while(state, pred=iswhitespace)
+    if state.finished():
+        raise UnexpectedEOF("Environment missing body")
+    if state.text[state.pos] != "\n":
+        return parse_until(state, lambda c: c == "\n")
+    body = parse_empty(state)
+    if line_is_empty(state):
+        raise UnexpectedEOF("Environment missing body")
+    indent_level = calc_indent_level(state)
+    if indent_level != outer_indent_level + 1:
+        raise InvalidSyntax("Missing indentation after environment")
+    return body + parse_raw_block(state, indent_level)
+
+
 def parse_environment_body(state, outer_indent_level):
     """
     precondition: `state.pos` is at the first character following the colon
@@ -277,7 +324,7 @@ def parse_environment_body(state, outer_indent_level):
     parse_while(state, pred=iswhitespace)
     if state.finished():
         raise UnexpectedEOF("Environment missing body")
-    if state.text[state.pos] not in "\n%":  # TODO: parse one-liners better
+    if state.text[state.pos] not in "\n%":
         return parse_oneliner(state, outer_indent_level)
     comment = None
     if state.text[state.pos] == "%":
@@ -371,13 +418,10 @@ def parse_block_body(state, outer_indent_level, preamble=False):
     if state.finished():
         return body
     if state.text[state.pos] == "\n":
-        # body += "\n"
-        # increment(state)
         return body + parse_block_newline(
             state, outer_indent_level=outer_indent_level, preamble=preamble
         )
     if state.text[state.pos] == "\\":
-        # increment(state)
         body += parse_block_control(state, outer_indent_level=outer_indent_level)
         return body + parse_block_body(state, outer_indent_level, preamble)
     if state.text[state.pos] == "{":
@@ -401,8 +445,6 @@ def parse_block(state, preamble=False):
     """
     precondition: `state.pos` is at the start of a line in the block (typically
         `parse_block` should be called from the line after a colon)
-    postcondition: `state.pos` is at the start of the next non-empty line after the
-        indented block
     """
     body = parse_empty(state)
     if line_is_empty(state):
@@ -419,7 +461,3 @@ def translate(source):
     state = State(source)
     res = parse_block(state, preamble=True)
     return res
-
-
-# TODO: assert preconditions
-# TODO: raw blocks, arguments
