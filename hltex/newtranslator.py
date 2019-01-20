@@ -158,7 +158,7 @@ def parse_args(state, name, params):
         else:
             raise InternalError()
         args.append(arg)
-    assert not params or state.text[state.pos - 1] in "]}"
+    assert all(p == "?" for p in params) or state.text[state.pos - 1] in "]}"
     return args
 
 
@@ -324,8 +324,6 @@ def parse_raw_block(state, outer_indent_level):
         if indent_level < outer_indent_level:
             state.pos = start
             return body
-        if indent_level > outer_indent_level:
-            raise UnexpectedIndentation("Indentation should only follow environments")
         return body + "\n" + empty + parse_raw_block(state, outer_indent_level)
     raise InternalError()
 
@@ -506,7 +504,7 @@ def parse_block(state, preamble=False):
     )
 
 
-def translate(source):
-    state = State(source)
+def translate(source, file_env=None):
+    state = State(source, file_env=file_env)
     res = parse_block(state, preamble=True)
     return res

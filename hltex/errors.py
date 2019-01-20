@@ -13,6 +13,10 @@ class UnexpectedEOF(TranslationError):
     pass
 
 
+class DependencyError(TranslationError):
+    pass
+
+
 class MissingArgument(TranslationError):
     pass
 

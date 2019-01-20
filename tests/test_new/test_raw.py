@@ -1,7 +1,4 @@
-import pytest
-
 from hltex.context import increment
-from hltex.errors import UnexpectedIndentation
 from hltex.newtranslator import parse_raw_environment_body
 from hltex.state import State
 
@@ -129,9 +126,11 @@ def test_block_empty():
 
 
 def test_unexpected_indentation():
-    source = ":\n    something\n   \n        something else\n123"
+    source = ":\n    something\n   \n        something else\n    more things\n123"
     state = State(source)
     increment(state)
-    with pytest.raises(UnexpectedIndentation) as excinfo:
+    assert (
         parse_raw_environment_body(state, outer_indent_level=0)
-    assert "Indentation should only follow environments" in excinfo.value.msg
+        == "\n    something\n   \n        something else\n    more things"
+    )
+    assert source[state.pos] == "\n"

@@ -54,6 +54,13 @@ def test_optional_missing():
     assert state.pos == len(source)
 
 
+def test_optional_all_missing():
+    source = "123"
+    state = State(source)
+    assert parse_args(state, name="test", params="?") == [None]
+    assert source[state.pos] == "1"
+
+
 def test_missing():
     source = "{arg1}{arg2}"
     state = State(source)
