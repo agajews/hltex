@@ -387,10 +387,13 @@ def parse_document(state):
     if state.text[state.pos] != "\n":
         raise InvalidSyntax("Missing newline after document delineator")
     increment(state)
-    if calc_indent_level(state) != 0:
+    empty = parse_empty(state)
+    if line_is_empty(state):
+        document = "\n" + empty
+    elif calc_indent_level(state) != 0:
         raise UnexpectedIndentation("The document as a whole must not be indented")
-    state.in_document = True
-    document = "\n" + parse_block(state)
+    else:
+        document = "\n" + empty + parse_block(state)
     return postprocess_block(
         latex_env(state, "document", "", preprocess_block(document), indent=False),
         state,
@@ -406,9 +409,9 @@ def parse_block_newline(state, outer_indent_level, preamble=False):
     assert state.text[state.pos] == "\n"
     start = state.pos
     increment(state)
-    if preamble and state.text[state.pos : state.pos + 3] == "===":
-        return "\n" + parse_document(state)
     empty = parse_empty(state)
+    if preamble and state.text[state.pos : state.pos + 3] == "===":
+        return "\n" + empty + parse_document(state)
     if state.finished():
         state.pos = start
         return ""

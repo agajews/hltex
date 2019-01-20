@@ -18,3 +18,6 @@ class State:
 
     def finished(self):
         return self.pos >= len(self.text)
+
+    def get_line(self):
+        return self.text.count("\n", 0, self.pos)

@@ -12,6 +12,13 @@ def test_parse():
     assert state.pos == len(source)
 
 
+def test_empty_at_start():
+    source = "\n\nsomething"
+    state = State(source)
+    assert state.run(parse_block) == "\n\nsomething"
+    assert state.pos == len(source)
+
+
 def test_newline():
     source = "something\n"
     state = State(source)

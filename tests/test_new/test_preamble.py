@@ -13,6 +13,38 @@ def test_parse():
     assert res == "\\documentclass{article}\n\\begin{document}\nHey!\n\\end{document}"
 
 
+def test_parse_start():
+    source = "===\nHey!"
+    state = State(source)
+    res = parse_block(state, preamble=True)
+    print(res)
+    assert res == "\\begin{document}\nHey!\n\\end{document}"
+
+
+def test_parse_double_newline():
+    source = "\\documentclass{article}\n\n===\nHey!"
+    state = State(source)
+    res = parse_block(state, preamble=True)
+    print(res)
+    assert res == "\\documentclass{article}\n\n\\begin{document}\nHey!\n\\end{document}"
+
+
+def test_parse_empty_after():
+    source = "\\documentclass{article}\n===\n  \n"
+    state = State(source)
+    res = parse_block(state, preamble=True)
+    print(res)
+    assert res == "\\documentclass{article}\n\\begin{document}\n\n\\end{document}"
+
+
+def test_parse_double_newline_after_preamble():
+    source = "\\documentclass{article}\n===\n\nHey!"
+    state = State(source)
+    res = parse_block(state, preamble=True)
+    print(res)
+    assert res == "\\documentclass{article}\n\\begin{document}\n\nHey!\n\\end{document}"
+
+
 def test_missing_document():
     source = "\\documentclass{article}\n==="
     state = State(source)
