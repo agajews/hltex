@@ -1,5 +1,5 @@
-from hltex.newtranslator import parse_optional_arg
 from hltex.state import State
+from hltex.translator import parse_optional_arg
 
 
 def test_parse():

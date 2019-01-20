@@ -2,8 +2,8 @@ import pytest
 
 from hltex.context import increment
 from hltex.errors import InvalidSyntax
-from hltex.newtranslator import parse_environment_body
 from hltex.state import State
+from hltex.translator import parse_environment_body
 
 
 def test_parse():

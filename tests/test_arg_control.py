@@ -1,10 +1,10 @@
 import pytest
 
 from hltex.context import increment
+from hltex.control import Command
 from hltex.errors import UnexpectedEOF
-from hltex.newcontrol import Command
-from hltex.newtranslator import parse_arg_control
 from hltex.state import State
+from hltex.translator import parse_arg_control
 
 
 def test_parse():

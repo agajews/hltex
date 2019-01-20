@@ -1,8 +1,8 @@
 import pytest
 
 from hltex.errors import InvalidSyntax
-from hltex.newtranslator import parse_optional_argstr
 from hltex.state import State
+from hltex.translator import parse_optional_argstr
 
 
 def test_parse():

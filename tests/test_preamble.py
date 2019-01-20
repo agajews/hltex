@@ -1,8 +1,8 @@
 import pytest
 
 from hltex.errors import InvalidSyntax, UnexpectedEOF, UnexpectedIndentation
-from hltex.newtranslator import parse_block
 from hltex.state import State
+from hltex.translator import parse_block
 
 
 def test_parse():
@@ -99,22 +99,22 @@ def test_multiline():
 
 
 def test_envs():
-    source = "\\documentclass{article}\n\\eq:\n    f(x)\n===\nHey!\nHey again!"
+    source = "\\documentclass{article}\n\\equation:\n    f(x)\n===\nHey!\nHey again!"
     state = State(source)
     res = parse_block(state, preamble=True)
     print(repr(res))
     assert (
         res
-        == "\\documentclass{article}\n\\begin{eq}\n    f(x)\n\\end{eq}\n\\begin{document}\nHey!\nHey again!\n\\end{document}"
+        == "\\documentclass{article}\n\\begin{equation}\n    f(x)\n\\end{equation}\n\\begin{document}\nHey!\nHey again!\n\\end{document}"
     )
 
 
 def test_oneliners():
-    source = "\\documentclass{article}\n\\eq:    f(x)\n===\nHey!\nHey again!"
+    source = "\\documentclass{article}\n\\equation:    f(x)\n===\nHey!\nHey again!"
     state = State(source)
     res = parse_block(state, preamble=True)
     print(repr(res))
     assert (
         res
-        == "\\documentclass{article}\n\\begin{eq}f(x)\\end{eq}\n\\begin{document}\nHey!\nHey again!\n\\end{document}"
+        == "\\documentclass{article}\n\\begin{equation}f(x)\\end{equation}\n\\begin{document}\nHey!\nHey again!\n\\end{document}"
     )

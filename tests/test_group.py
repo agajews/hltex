@@ -1,8 +1,8 @@
 import pytest
 
 from hltex.errors import InvalidSyntax, UnexpectedEOF
-from hltex.newtranslator import parse_group
 from hltex.state import State
+from hltex.translator import parse_group
 
 
 def test_group():

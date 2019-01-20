@@ -1,581 +1,513 @@
-import os
-import sys
-import traceback
+from .context import increment, parse_until, parse_while
+from .control import latex_env
+from .errors import (
+    InternalError,
+    InvalidSyntax,
+    MissingArgument,
+    UnexpectedEOF,
+    UnexpectedIndentation,
+)
+from .indentation import (
+    calc_indent_level,
+    iswhitespace,
+    line_is_empty,
+    parse_empty,
+    postprocess_block,
+    preprocess_block,
+)
+from .state import State
 
-from .control import Arg, Environment, commands, environments, latex_env
-from .errors import TranslationError
+
+def parse_control_name(state):
+    """
+    precondition: `state.pos` is at the first character following a backslash
+    postcondition: `state.pos` is at the first character following the name of the
+        control sequence
+    raises: UnexpectedEOF if there is no character following the name of the control
+        sequence
+    """
+    assert state.text[state.pos - 1] == "\\"
+    if state.finished():
+        raise UnexpectedEOF(
+            "Unescaped backslashes must be followed by at least one character"
+        )
+    name = parse_while(state, pred=str.isalpha)
+    if not name:
+        name = increment(state)
+    assert (
+        state.finished()
+        or not str.isalpha(state.text[state.pos])
+        or not str.isalpha(state.text[state.pos - 1])
+    )
+    return name
 
 
-def isnewline(char):
-    return char == "\n"
+def parse_arg_control(state):
+    """
+    precondition: `state.pos` is at the first character following a backslash
+    postcondition: `state.pos` is either at the first character following the
+    command name (for native commands) or at the first character following the last
+    argument (for custom commands)
+    """
+    assert state.text[state.pos - 1] == "\\"
+    name = parse_control_name(state)
+    if name in state.commands:
+        return parse_custom_command(state, command=state.commands[name])
+    return "\\" + name
 
 
-def iswhitespace(char):
-    return str.isspace(char) and not isnewline(char)
+def parse_comment(state):
+    """
+    precondition: `state.pos` is after a percent sign
+    postcondition: `state.pos` is at the newline following the percent sign (or at the
+        EOF if there is no following newline)
+    """
+    assert state.text[state.pos - 1] == "%"
+    res = "%" + parse_until(state, lambda c: c == "\n")
+    assert state.finished() or state.text[state.pos] == "\n"
+    return res
 
 
-# def is_opt_end(char):
-#     return char in '#$%^&_{}[]~\\'
+def parse_group(state, end):
+    """
+    precondition: `state.pos` is somewhere inside a group (typically would be called
+        from the first character following the opening brace or bracket)
+    postcondition: `state.pos` is at the first character following the closing brace or
+        bracket
+    """
+    body = parse_until(state, pred=lambda c: c in "{}\\%" + end)
+    if state.finished():
+        raise UnexpectedEOF("Missing closing `{}`".format(end))
+    if state.text[state.pos] == end:
+        increment(state)
+        assert state.text[state.pos - 1] == end
+        return body
+    if state.text[state.pos] == "}":
+        raise InvalidSyntax("Unexpected `}`")
+    if state.text[state.pos] == "{":
+        increment(state)
+        body += "{" + parse_group(state, end="}") + "}"
+    elif state.text[state.pos] == "\\":
+        increment(state)
+        body += parse_arg_control(state)
+    elif state.text[state.pos] == "%":
+        increment(state)
+        body += parse_comment(state)
+    else:
+        raise InternalError()
+    res = body + parse_group(state, end)
+    assert state.text[state.pos - 1] == end
+    return res
 
 
-class Translator:
-    def __init__(self, text, file_env=None):
-        self.indent_str = None
-        self.indent_level = 0
-
-        self.pos = 0
-        # we will often increment pos by 1 when we expect a control seq/block to end
-        # this prevents us from going out of bounds (in general it's a good idea to end file with \n)
-        if not text or text[-1] != "\n":
-            text += "\n"
-        self.text = text
-        self.preamble = False
-
-        self.generated_files = []
-        if file_env is None:
-            file_env = {}
-        self.file_env = file_env
-
-        self.sandbox = None
-
-    def finished(self):
-        assert self.pos <= len(self.text)
-        return self.pos == len(self.text)
-
-    def not_finished(self):  # TODO: get rid of this
-        return not self.finished()
-
-    def check_for_document_begin(self):
-        """
-        precondition: at previous end-of-line
-        postcondition: self.pos remain the same UNLESS we enter the document from preamble,
-            in which case it's at the next new line
-        Checks for ===, the separator between preamble and document
-
-        return: spacing needed before \\begin{document}, or None if not at separator yet
-        """
-        if self.indent_level != 0 or not self.preamble:
-            return None
-
-        # at root level in preamble; lines must start with \ or ===
-        token_start = self.pos
-        self.parse_empty()
-        line_start = self.pos
-        self.parse_while(iswhitespace)
-        if self.text[self.pos] == "=":
-            separator_start = self.pos
-            self.parse_while(lambda c: c == "=")
-            if self.pos - separator_start < 3:
-                self.error(
-                    "Separator indicating start of document must be at least '===' (3 equal signs)"
-                )
-
-            self.parse_while(iswhitespace)
-            if self.finished() or self.text[self.pos] == "\n":
-                self.preamble = None
-
-                return self.text[token_start:line_start]
-
-        elif self.text[self.pos] not in "\\%\n=":
-            self.error("Preamble must consist exclusively of commands and environments")
-
-        self.pos = token_start
+def parse_optional_arg(state):
+    """
+    precondition: `state.pos` is at the first character following the previous argument
+    postcondition: `state.pos` is either at the first character following the closing
+        bracket, or where it started if no closing bracket was found
+    """
+    start = state.pos
+    parse_while(state, pred=iswhitespace)
+    if state.finished() or not state.text[state.pos] == "[":
+        state.pos = start
         return None
+    increment(state)
+    res = parse_group(state, end="]")
+    assert state.text[state.pos - 1] == "]"
+    return res
 
-    def parse_while(self, pred):
-        """
-        pred: a boolean-valued function (i.e. a predicate) on a character
-        postcondition: `self.pos` is at the first character *not* satisfying `pred`, after the original `self.pos` at call-time,
-            or `len(self.text)` if there is no such character
-        """
-        # TODO: deal with unexpected EOF
-        while self.not_finished() and pred(self.text[self.pos]):
-            self.pos += 1
 
-    def parse_until(self, pred):
-        """
-        pred: a boolean-valued function (i.e. a predicate) on a character
-        postcondition: `self.pos` is at the first character satisfying `pred`, after the original `self.pos` at call-time,
-            or `len(self.text)` if there is no such character
-        """
-        self.parse_while(lambda c: not pred(c))
-
-    def validate_indent(self, indent):
-        """
-        indent: str
-        errors: if `indent` is nonempty and isn't either all tabs or all spaces
-        """
-        if not (all(s == " " for s in indent) or all(s == "\t" for s in indent)):
-            self.error(
-                "Invalid indentation; must be all spaces or all tabs"
-            )  # TODO: more verbose errors
-
-    def level_of_indent(self, indent, validate=True):
-        """
-        indent: str
-        precondition: `self.indent_str` is not None
-        validate: False if we don't care about indentation correctness, e.g. if we're in a raw block
-
-        errors: if `len(indent)` isn't a multiple of `len(self.indent_str)`
-        returns: the whole number of non-overlapping `self.indent_str` in `indent`
-            (i.e. the indentation level where `self.indent_str` is the base unit of indentation)
-        """
-        if validate and not len(indent) % len(self.indent_str) == 0:
-            self.error(
-                "Indentation must be in multiples of the base indentation `{}`".format(
-                    self.indent_str
-                )
-            )
-        return len(indent) // len(self.indent_str)
-
-    def calc_indent_level(self, validate=True):
-        """
-        precondition: `self.pos` is at the start of a line
-        postcondition: `self.pos` is where it started
-        validate: False if we don't care about indentation correctness, e.g. if we're in a raw block
-        errors: if the current line isn't well-indented (e.g. if it is more than one
-            deeper than the current level)
-        returns: the indentation level of the current line, in terms of `self.indent_str` units
-        """
-        if validate:
-            assert (
-                self.pos == 0 or self.finished() or isnewline(self.text[self.pos - 1])
-            ), "pos: {}, text: {}".format(
-                self.pos, self.text[self.pos - 1 : self.pos + 10]
-            )
-
-        indent_start = self.pos
-        self.parse_while(iswhitespace)
-        indent = self.text[indent_start : self.pos]
-        if not indent:
-            self.pos = indent_start
-            return 0
-        if validate:
-            self.validate_indent(indent)
-        if self.indent_str is None:
-            self.indent_str = indent
-        indent_level = self.level_of_indent(indent, validate)
-        if validate and self.indent_level == -1 and indent_level != 0:
-            self.error("The document as a whole must not be indented")
-        self.pos = indent_start
-        return indent_level
-
-    def parse_empty(self):
-        """
-        postcondition: `self.pos` is at the start of the next non-whitespace line (i.e.
-            after the preceeding newline), or at `len(self.text)` if there isn't a
-            next non-whitespace line
-        """
-        while self.not_finished():
-            line_end = self.text.find("\n", self.pos)
-            if line_end == -1:
-                line_end = len(self.text) - 1
-            if not str.isspace(self.text[self.pos : line_end + 1]):
-                # print('`{}` is not a space'.format(self.text[self.pos:line_end]))
-                break
-            self.pos = line_end + 1
-
-    def parse_comments(self):
-        """
-        precondition: `self.pos` is at '%', start of a comment
-        postcondition: `self.pos` is at the start of the next non-whitespace line (i.e.
-            after the preceeding newline), or at `len(self.text)` if there isn't a
-            next non-whitespace line
-
-        What this is really doing is just to parse this line and then any all-white lines after
-        """
-        self.parse_until(isnewline)
-        self.parse_empty()
-
-    def parse_control_seq(self):
-        """
-        precondition: `self.pos` is at the first character after the escape character ('\\')
-        postcondition: `self.pos` is at the first character after the name of the command
-            (including for control symbols, commands whose names are single special characters),
-            or at `len(self.text)` if there isn't a character after the command name
-        returns: the name of the command
-        """
-        control_start = self.pos
-        self.parse_while(str.isalpha)
-        if self.pos == control_start:
-            self.pos += 1  # control symbols are only one character long
-        # pos should be at the first non-alpha character
-        control_seq = self.text[control_start : self.pos]
-        return control_seq
-
-    def parse_backslash(self, allow_env=True):
-        """
-        precondition: `self.pos` is at \\
-        """
-        assert self.text[self.pos] == "\\", self.pos
-        self.pos += 1
-        control_seq = self.parse_control_seq()
-        body = ""
-
-        if control_seq in commands:
-            body += self.do_command(commands[control_seq])
-        else:
-            args, argstr = self.parse_args()  # TODO: allow raw args in environments?
-            whitespace_start = self.pos
-            self.parse_while(iswhitespace)
-            if self.not_finished() and self.text[self.pos] == ":":
-                if not allow_env:
-                    self.error(
-                        "Nested environments not supported inside oneline environments."
-                    )
-                    return body
-
-                self.pos += 1
-                # print('at environment')
-                # print('Doing environment `{}`'.format(control_seq))
-
-                # environment if known, name of environment otherwise
-                environment = environments.get(control_seq, control_seq)
-                outer_indent = self.indent_level
-
-                body += self.do_environment(environment, args, argstr, outer_indent)
-            else:
-                body += (
-                    "\\" + control_seq + argstr + self.text[whitespace_start : self.pos]
-                )
-
-        # print('parsing backslash: {} line {} pos {}'.format(self.text[self.pos], self.get_line(), self.pos))
-        # self.pos -= 1
+def parse_required_arg(state, name, raw=False):
+    """
+    precondition: `state.pos` is at the first character following the previous argument
+    postcondition: `state.pos` is at the first character following the closing brace
+    """
+    parse_while(state, pred=iswhitespace)
+    if state.finished():
+        raise UnexpectedEOF("Missing required argument for `{}`".format(name))
+    if not state.text[state.pos] == "{":
+        raise MissingArgument("Missing required argument for `{}`".format(name))
+    increment(state)
+    if raw:
+        body = parse_while(state, lambda c: c != "}")
+        if state.finished():
+            raise UnexpectedEOF("Missing closing `}}` for `{}`".format(name))
+        increment(state)
+        assert state.text[state.pos - 1] == "}"
         return body
+    res = parse_group(state, end="}")
+    assert state.text[state.pos - 1] == "}"
+    return res
 
-    def parse_arg(self, close="}", required=False, is_raw=False):
-        """
-        close: the closing brace or bracket to the argument
-        required: whether to error if no closing brace or bracket is found
-        is_raw: whether the argument is raw (only waiting for unescaped close character)
-        precondition: `self.pos` is at the first character following the opening '{' or '['
-        postcondition: `self.pos` is at the first character following the closing '}' or ']',
-            or at `len(self.text)` if there is no such character; `parse_arg` ignores
-            everything except for other commands inside the braces;
-            we also skip over comments, ignoring everything from '%' up to the end of line
-        errors: if `required` and the file ends before there is a `close` character
-        returns: the substring strictly between the opening and closing curly braces
-        """
-        token_start = self.pos
-        body = ""
-        while self.not_finished():
-            self.parse_until(lambda c: c == close or (not is_raw and (c in "\\{%")))
-            if self.not_finished():
-                if self.text[self.pos] == "{":
-                    body += self.text[token_start : self.pos]
-                    self.pos += 1
-                    body += "{" + self.parse_arg(required=True) + "}"
-                elif self.text[self.pos] == "\\":
-                    body += self.text[token_start : self.pos]
 
-                    body += self.parse_backslash()
-
-                elif self.text[self.pos] == close:
-                    if is_raw and self.text[self.pos - 1] == "\\":
-                        self.pos += 1
-                        continue  # escaped close }, skip
-
-                    body += self.text[token_start : self.pos]
-                    self.pos += 1
-                    return body
-
-                elif self.text[self.pos] == "%":
-                    body += self.text[token_start : self.pos]
-                    self.parse_comments()
-
-                token_start = self.pos
-
-        if required:
-            self.error("Missing closing `{}`".format(close))
+def parse_args(state, name, params):
+    """
+    precondition: `state.pos` is at the first character following the name of a control
+        sequence
+    postcondition: `state.pos` is at the first character following the last argument's
+        closing bracket or brace
+    """
+    args = []
+    for param in params:
+        if param == "?":
+            arg = parse_optional_arg(state)
+        elif param == "!":
+            arg = parse_required_arg(state, name=name)
+        elif param == "x":
+            arg = parse_required_arg(state, name=name, raw=True)
         else:
-            return None
+            raise InternalError()
+        args.append(arg)
+    assert all(p == "?" for p in params) or state.text[state.pos - 1] in "]}"
+    return args
 
-    def parse_args(self, min_args=None, max_args=None, is_raw=False):
-        """
-        min_args: an int representing the minumum number of arguments to parse; None for no minimum
-        max_args: an int representing the maximum number of arguments to parse; None for unlimited
-        precondition: `self.pos` is at the first character after the name of the command
-        postcondition: `self.pos` is at the first character after the last argument's closing brace or bracket
-        errors: if there are fewer than `min_args` arguments following the command
-        returns: (args, argstring) -- a list of `Arg`s containing the parsed arguments, and the original LaTeX string.
-            Comments will be included in argstring but not in args
-        """
-        if max_args == 0:
-            return [], ""  # TODO: test this case
-        args = []
-        parse_start = self.pos
-        nargs = 0
-        while True:
-            self.parse_while(iswhitespace)
-            if self.finished():
-                break
 
-            if self.text[self.pos] == "{":  # TODO: make this less repetitive?
-                self.pos += 1
-                arg = self.parse_arg(close="}", required=True, is_raw=is_raw)
-                args.append(Arg(arg, optional=False))
-                nargs += 1
-            elif self.text[self.pos] == "[":
-                arg_start = self.pos
-                self.pos += 1
-                arg = self.parse_arg(close="]", is_raw=is_raw)
-                if arg is not None:
-                    args.append(Arg(arg, optional=True))
-                    nargs += 1
-                else:
-                    self.pos = arg_start
-                    break
-            else:
-                if min_args is not None and nargs < min_args:
-                    self.error("Too few arguments provided")
-                else:
-                    break
-            if max_args is not None and nargs >= max_args:
-                break
-
-        argstr = self.text[parse_start : self.pos]
-        return args, argstr
-
-    def do_command(self, command):
-        """
-        command: `Command` object representing the command to execute
-        precondition: `self.pos` is at the first character after the name of the command
-            (e.g. a '{', but also possibly some whitespace)
-        postcondition: `self.pos` is at the first character after the last argument of the command
-            (or after the name for commands with no arguments)
-        errors:
-            if there are too few arguments
-            if the arguments are ill-formed (e.g. contain environments)
-        returns: a LaTeX string representing the result of the command
-        """
-        if not command.params:  # this is just for efficiency
-            return command.translate(self, [])
-        args, argstr = self.parse_args(
-            max_args=len(command.params), is_raw=command.is_raw
-        )
-        return command.translate(self, args)
-
-    def do_environment(self, environment, args, argstr, outer_indent):
-        # TODO: ensure the translate_fn use the same indent string and starts the block with 0 indent,
-        #       then we'll wrap this block with the correct indentation level
-        """
-        environment: either an `Environment` object to do the translation, or a string,
-            the name of a LaTeX environment for which to insert a corresponding begin/end
-        args: a list of `Arg`s to pass to the environment if it's ours
-        argstr: a LaTeX string containing the arguments to pass if it's a LaTeX environment
-        outer_indent: indentation level of the enclosing environment, or 0 if unenclosed
-
-        precondition: `self.pos` is at the first character after the colon
-            (e.g. a newline, but also possibly some other whitespace or a non-alph character for one-liners)
-        postcondition:
-            `self.pos` is at the end `\n` of the block, both for one-liner and for indented blocks
-        errors:
-            if the line opening the environment is empty after the colon, but the following
-                line isn't indented and the environment isn't the first `document` environment
-            if there is indentation not following the opening of an environment
-            if any indentation is ill-formed (e.g. not all tabs or spaces, or
-                not a whole repetition of `self.indent_str`)
-        returns: a translated LaTeX string for the environment
-        """
-        # print('do environment: ', environment.name if isinstance(environment, Environment) else str(environment))
-        is_raw = isinstance(environment, Environment) and environment.is_raw
-
-        token_start = self.pos
-        body = ""
-        post_env = ""
-
-        self.parse_while(iswhitespace)
-        if self.finished():
-            # print("at end of do_environment ...remaining text: {}".format(body, self.text[token_start:]))
-            body += self.text[token_start:]
-        else:
-            if self.text[self.pos] == "\n":
-                # print('start env: ', self.pos, self.get_line(), environment.name if isinstance(environment, Environment) else str(environment), self.indent_level, outer_indent)
-                body += self.parse_block(is_raw=is_raw)
-                if body[-1] != "\n":
-                    body += "\n"
-                # print('end env: ', self.pos, self.get_line(), environment.name if isinstance(environment, Environment) else str(environment), self.indent_level, outer_indent)
-                if outer_indent > 0:
-                    body += self.indent_str * outer_indent
-            else:  # TODO: call parse_block instead
-                # For one-liners, we keep the whitespace we've parsed over
-                while self.not_finished():
-                    self.parse_until(lambda c: c in ["\n", "\\", "%"])
-                    if self.finished() or self.text[self.pos] == "\n":
-                        body += self.text[token_start : self.pos]
-                        # self.pos += 1  # skip over the end line
-                        break
-
-                    elif self.text[self.pos] == "\\":
-                        body += self.text[token_start : self.pos]
-                        body += self.parse_backslash(allow_env=False)
-                        token_start = self.pos
-
-                    elif (
-                        self.text[self.pos] == "%"
-                    ):  # include the comments but ignore any \\
-                        body += self.text[token_start : self.pos]
-                        comment_start = self.pos
-                        self.parse_comments()
-                        post_env = self.text[
-                            comment_start : self.pos
-                        ]  # put these after \end{...} on the same line
-                        break
-
-        if isinstance(environment, Environment):
-            return environment.translate(self, body, args) + post_env
-        return latex_env(environment, body=body, args=argstr, post_env=post_env)
-
-    def parse_block(self, is_raw=False):
-        # TODO: can this be broken up into smaller methods?
-        """
-        precondition: `self.pos` is at the first newline after the colon for environments,
-            or the beginning of the file for the outermost call
-        postcondition: `self.pos` is at the endline `\n` following the block, or at
-            `len(self.text)` if the block is at the end of the file
-        errors:
-            if there is an ill-formed environment (e.g. not indended after and not a one-liner)
-            if there is indentation not following the opening of an environment
-            if any indentation is ill-formed (e.g. not all tabs or spaces, or
-                not a whole repetition of `self.indent_str`)
-        returns: the substring containing everything from the original value of `self.pos`
-            at calltime through and including the newline before the next non-whitespace
-            line, or through the end of the file if the block is at the end of the file
-
-            If is_raw is True, then return the block of text unmodified
-        """
-
-        body = ""
-        # print('starting block at {}, line {}, indent: {}'.format(self.pos, self.get_line(), self.indent_level))
-        token_start = self.pos
-
-        self.parse_empty()
-        indent_level = self.calc_indent_level(not is_raw)
-        # print(indent_level)
-
-        if not is_raw and indent_level != self.indent_level + 1:
-            self.error(
-                "Indent Error: you must either put the body of an environment all on one line, or on an indented block on the following line"
-            )
-
-        prev_block_indent = self.indent_level
-        self.indent_level += 1
-
-        while self.not_finished():
-            # precondition: endline \n
-            space_before_document = self.check_for_document_begin()
-            if space_before_document is not None:
-                self.indent_level = -1
-                body += space_before_document
-
-                # Maybe: two lines separating preamble and main?
-                return body + latex_env(
-                    "document", "", self.parse_block(), "", "", "\n"
-                )
-
-            self.parse_until(lambda c: c == "\n" or (not is_raw and (c in "\\%")))
-            if self.finished():
-                break
-
-            if self.text[self.pos] == "\n":
-                prev_line_end = self.pos
-
-                self.parse_empty()
-                indent_level = self.calc_indent_level(not is_raw)
-                # print(indent_level, prev_line_end, prev_block_indent, self.indent_level)
-
-                if not is_raw and indent_level > self.indent_level:
-                    self.error(
-                        "Invalid indentation not following the opening of an environment"
-                    )
-
-                if indent_level <= prev_block_indent:  # unindent, end block
-                    # save the white space for outside the environment
-                    self.pos = prev_line_end  # + 1
-                    body += self.text[token_start : self.pos]
-                    self.indent_level = indent_level
-                    return body
-
-            elif self.text[self.pos] == "\\":
-                body += self.text[token_start : self.pos]
-                body += self.parse_backslash()
-                token_start = self.pos
-
-            elif self.text[self.pos] == "%":  # include the comments but ignore any \\
-                self.parse_comments()
-                body += self.text[token_start : self.pos]
-                token_start = self.pos
-
-        # print("at end of parse_block... body {} remaining text: {}".format(body, self.text[token_start:]))
-
-        body += self.text[token_start:]
-        if body[-1] != "\n":
-            body += "\n"
+def parse_optional_argstr(state):
+    """
+    precondition: `state.pos` is somewhere an optional argstr (typically would be called
+        from the first character following the opening bracket)
+    postcondition: `state.pos` is at the first character following the closing bracket,
+        or where it started if the line ends before it finds it
+    """
+    start = state.pos
+    body = parse_until(state, pred=lambda c: c in "\n{}\\[]%")
+    if state.finished() or state.text[state.pos] in "\n%":
+        return None
+    if state.text[state.pos] == "]":
+        increment(state)
         return body
+    if state.text[state.pos] == "}":
+        raise InvalidSyntax("Unexpected `}`")
+    if state.text[state.pos] == "{":
+        increment(state)
+        body += "{" + parse_group(state, end="}") + "}"
+    elif state.text[state.pos] == "[":
+        increment(state)
+        body += "[" + parse_group(state, end="]") + "]"
+    elif state.text[state.pos] == "\\":
+        increment(state)
+        body += parse_arg_control(state)
+    else:
+        raise InternalError()
+    res = parse_optional_argstr(state)
+    if res is None:
+        state.pos = start
+        return None
+    return body + res
 
-    def get_line(self):
-        return self.text.count("\n", 0, self.pos)
 
-    def fetch_generated_files(self):
-        import hlbox
-        import tempfile
+def parse_argstr(state):
+    """
+    precondition: `state.pos` is at the first character following the name of a control
+        sequence
+    postcondition: `state.pos` is at the first character following the last argument's
+        closing bracket or brace
+    """
+    start = state.pos
+    body = parse_while(state, pred=iswhitespace)
+    if state.finished() or state.text[state.pos] not in "{[":
+        state.pos = start
+        return ""
+    if state.text[state.pos] == "{":
+        increment(state)
+        body += "{" + parse_group(state, end="}") + "}"
+        assert state.text[state.pos - 1] == "}"
+        return body + parse_argstr(state)
+    if state.text[state.pos] == "[":
+        increment(state)
+        res = parse_optional_argstr(state)
+        if res is None:
+            state.pos = start
+            return ""
+        body += "[" + res + "]"
+        assert state.text[state.pos - 1] == "]"
+        return body + parse_argstr(state)
+    raise InternalError()
 
-        tmp_dir = os.path.join(
-            tempfile._get_default_tempdir(),  # pylint: disable=protected-access
-            "hltex_python_"
-            + next(tempfile._get_candidate_names()),  # pylint: disable=protected-access
+
+def parse_custom_command(state, command):
+    """
+    precondition: `state.pos` is at the first character following the name of a custom
+        command
+    postcondition: `state.pos` is at the first character following the last argument's
+        closing bracket or brace
+    """
+    args = parse_args(state, name=command.name, params=command.params)
+    return command.translate(state, args)
+
+
+def parse_native_control(state, name, outer_indent_level):
+    """
+    precondition: `state.pos` is at the first character following the name of a
+        native control sequence
+    postcondition: `state.pos` is at the first character following either the last
+        argument's closing bracket or brace for commands, or at the start of the next
+        non-empty block after the indented block
+    """
+    argstr = parse_argstr(state)
+    start = state.pos
+    parse_while(state, pred=iswhitespace)
+    if state.finished() or state.text[state.pos] != ":":
+        state.pos = start
+        return "\\" + name + argstr
+    increment(state)
+    body = parse_environment_body(state, outer_indent_level=outer_indent_level)
+    res = latex_env(state, name, argstr, preprocess_block(body))
+    # Don't indent the first line
+    return postprocess_block(res, state, outer_indent_level)
+
+
+def parse_custom_environment(state, environment, outer_indent_level):
+    """
+    precondition: `state.pos` is at the first character following the name of a custom
+        environment
+    postcondition: `state.pos` is at the start of the next non-empty line following the
+        indented block
+    """
+    args = parse_args(state, name=environment.name, params=environment.params)
+    parse_while(state, pred=iswhitespace)
+    if state.finished():
+        raise UnexpectedEOF("Environments must be followed by colons")
+    if not state.text[state.pos] == ":":
+        raise InvalidSyntax("Environments must be followed by colons")
+    increment(state)
+    if environment.raw:
+        body = parse_raw_environment_body(state, outer_indent_level)
+    else:
+        body = parse_environment_body(state, outer_indent_level)
+    res = environment.translate(state, preprocess_block(body), args)
+    return postprocess_block(res, state, outer_indent_level)
+
+
+def parse_oneliner(state, outer_indent_level):
+    """
+    precondition: `state.pos` is somewhere inside a one-liner (typically would be
+        called from the first character after the colon)
+    postcondition: `state.pos` is at the end of the line, or at `len(state.text)`
+    """
+    body = parse_until(state, pred=lambda c: c in "\\\n{}%")
+
+    if state.finished() or state.text[state.pos] == "\n":
+        return body
+    if state.text[state.pos] == "\\":
+        body += parse_block_control(state, outer_indent_level)
+        return body + parse_oneliner(state, outer_indent_level)
+    if state.text[state.pos] == "{":
+        increment(state)
+        body += "{" + parse_group(state, end="}") + "}"
+        return body + parse_oneliner(state, outer_indent_level)
+    if state.text[state.pos] == "%":
+        increment(state)
+        body += parse_comment(state)
+        return body
+    if state.text[state.pos] == "}":
+        raise InvalidSyntax("Unexpected `}`")
+    raise InternalError()
+
+
+def parse_raw_block(state, outer_indent_level):
+    """
+    precondition: `state.pos` is somewhere inside a raw block
+    """
+    body = parse_until(state, pred=lambda c: c == "\n")
+
+    if state.finished():
+        return body
+    if state.text[state.pos] == "\n":
+        start = state.pos
+        increment(state)
+        empty = parse_empty(state)
+        if state.finished():
+            state.pos = start
+            return body
+        indent_level = calc_indent_level(state)
+        if indent_level < outer_indent_level:
+            state.pos = start
+            return body
+        return body + "\n" + empty + parse_raw_block(state, outer_indent_level)
+    raise InternalError()
+
+
+def parse_raw_environment_body(state, outer_indent_level):
+    """
+    precondition: `state.pos` is at the first character following the colon
+    """
+    assert state.text[state.pos - 1] == ":"
+    parse_while(state, pred=iswhitespace)
+    if state.finished():
+        raise UnexpectedEOF("Environment missing body")
+    if state.text[state.pos] != "\n":
+        return parse_until(state, lambda c: c == "\n")
+    body = parse_empty(state)
+    if line_is_empty(state):
+        raise UnexpectedEOF("Environment missing body")
+    indent_level = calc_indent_level(state)
+    if indent_level != outer_indent_level + 1:
+        raise InvalidSyntax("Missing indentation after environment")
+    return body + parse_raw_block(state, indent_level)
+
+
+def parse_environment_body(state, outer_indent_level):
+    """
+    precondition: `state.pos` is at the first character following the colon
+    postcondition: `state.pos` is at the next non-empty line following the indented
+        block, or at the end of the line for one-liners
+    """
+    assert state.text[state.pos - 1] == ":"
+    parse_while(state, pred=iswhitespace)
+    if state.finished():
+        raise UnexpectedEOF("Environment missing body")
+    if state.text[state.pos] not in "\n%":
+        return parse_oneliner(state, outer_indent_level)
+    comment = None
+    if state.text[state.pos] == "%":
+        increment(state)
+        comment = parse_comment(state)
+    body = parse_empty(state)
+    # increment(state)
+    if line_is_empty(state):
+        raise UnexpectedEOF("Environment missing body")
+    indent_level = calc_indent_level(state)
+    if indent_level != outer_indent_level + 1:
+        raise InvalidSyntax("Missing indentation after environment")
+    if comment is not None:
+        indent = (state.indent_str or "") * indent_level
+        body = "\n" + indent + comment + body
+    return body + parse_block(state)
+
+
+def parse_document(state):
+    """
+    precondition: `state.pos` is at the first =
+    postcondition: `state.pos` is at the end of the file
+    """
+    parse_while(state, pred=lambda c: c == "=")
+    if state.finished():
+        raise UnexpectedEOF("Missing document body")
+    if state.text[state.pos] != "\n":
+        raise InvalidSyntax("Missing newline after document delineator")
+    increment(state)
+    empty = parse_empty(state)
+    if line_is_empty(state):
+        document = "\n" + empty
+    elif calc_indent_level(state) != 0:
+        raise UnexpectedIndentation("The document as a whole must not be indented")
+    else:
+        document = "\n" + empty + parse_block(state)
+    return postprocess_block(
+        latex_env(state, "document", "", preprocess_block(document), indent=False),
+        state,
+        0,
+    )
+
+
+def parse_block_newline(state, outer_indent_level, preamble=False):
+    """
+    precondition: `state.pos` is at a newline in a block
+    postcondition: `state.pos` is at the start of the next line
+    """
+    assert state.text[state.pos] == "\n"
+    start = state.pos
+    increment(state)
+    empty = parse_empty(state)
+    if preamble and state.text[state.pos : state.pos + 3] == "===":
+        return "\n" + empty + parse_document(state)
+    if state.finished():
+        state.pos = start
+        return ""
+    indent_level = calc_indent_level(state)
+    if indent_level < outer_indent_level:
+        state.pos = start
+        return ""
+    if indent_level > outer_indent_level:
+        raise UnexpectedIndentation("Indentation should only follow environments")
+    return (
+        "\n"
+        + empty
+        + parse_block_body(
+            state, outer_indent_level=outer_indent_level, preamble=preamble
         )
-        os.mkdir(tmp_dir)
-        hlbox.runline(self.sandbox, "None\n")  # trigger tar
-        hlbox.download(self.sandbox, tmp_dir)
+    )
 
-        for f in os.listdir(tmp_dir):
-            if os.path.isfile(os.path.join(tmp_dir, f)) and f != "main.py":
-                self.generated_files.append(os.path.join(tmp_dir, f))
 
-    def parse_file(self):
-        self.preamble = True
-        self.indent_level = (
-            -1
-        )  # to simulate document block being indented as if it's a command
-        res = self.parse_block()
+def parse_block_control(state, outer_indent_level):
+    """
+    precondition: `state.pos` is at a backslash in a block
+    postcondition: `state.pos` is either at the first character following the last
+        argument's closing brace, or at the start of the next non-empty line for
+        indented environments, or at the start of the next line for one-liners
+    """
+    assert state.text[state.pos] == "\\"
+    increment(state)
+    name = parse_control_name(state)
+    if name in state.commands:
+        body = parse_custom_command(state, command=state.commands[name])
+    if name in state.environments:
+        body = parse_custom_environment(
+            state,
+            environment=state.environments[name],
+            outer_indent_level=outer_indent_level,
+        )
+    else:
+        body = parse_native_control(
+            state, name=name, outer_indent_level=outer_indent_level
+        )
+    return body
 
-        if self.sandbox is not None:
-            import hlbox
 
-            self.fetch_generated_files()
-            hlbox.destroy(self.sandbox)
+def parse_block_body(state, outer_indent_level, preamble=False):
+    """
+    precondition: `state.pos` is somewhere inside a block
+    postcondition: `state.pos` is at the start of the next non-empty line after the
+        indented block, or at `len(state.text)` if there is no next non-empty line
+    """
+    body = parse_until(state, pred=lambda c: c in "\\\n{}%")
 
-        return res
+    if state.finished():
+        return body
+    if state.text[state.pos] == "\n":
+        return body + parse_block_newline(
+            state, outer_indent_level=outer_indent_level, preamble=preamble
+        )
+    if state.text[state.pos] == "\\":
+        body += parse_block_control(state, outer_indent_level=outer_indent_level)
+        return body + parse_block_body(state, outer_indent_level, preamble)
+    if state.text[state.pos] == "{":
+        increment(state)
+        body += "{" + parse_group(state, end="}") + "}"
+        return body + parse_block_body(
+            state, outer_indent_level=outer_indent_level, preamble=preamble
+        )
+    if state.text[state.pos] == "%":
+        increment(state)
+        body += parse_comment(state)
+        return body + parse_block_body(
+            state, outer_indent_level=outer_indent_level, preamble=preamble
+        )
+    if state.text[state.pos] == "}":
+        raise InvalidSyntax("Unexpected `}`")
+    raise InternalError()
 
-    def translate(self):
-        # import pdb;pdb.set_trace()
-        try:
-            res = self.parse_file()
-            # print(self.generated_files)
-            return res
-        except TranslationError as e:
-            self.print_error(e.msg, self.get_line())
 
-    def translate_internal(self):
-        try:
-            return {
-                "text": self.parse_file(),
-                "error": None,
-                "line": None,
-                "files": self.generated_files,
-            }
-        except TranslationError as e:
-            traceback.print_exc()
-            return {"text": None, "error": e.msg, "line": self.get_line(), "files": []}
+def parse_block(state, preamble=False):
+    """
+    precondition: `state.pos` is at the start of a line in the block (typically
+        `parse_block` should be called from the line after a colon)
+    postcondition: `state.pos` is at the newline after the block; if there are empty
+        lines after the block, `state.pos` is before them
+    """
+    body = parse_empty(state)
+    if line_is_empty(state):
+        return body
+    if preamble and state.text[state.pos : state.pos + 3] == "===":
+        return body + parse_document(state)
+    outer_indent_level = calc_indent_level(state)
+    return body + parse_block_body(
+        state, outer_indent_level=outer_indent_level, preamble=preamble
+    )
 
-    def error(self, msg):  # pylint: disable=no-self-use
-        raise TranslationError(msg)
 
-    def print_error(self, msg, line):
-        ## TODO: prettier errors (line number, another line with ^ pointing to error character, etc.)
-        sys.stderr.write(
-            "{} at line {}, char {} (next 10 chars: {})\n".format(
-                msg, line, self.pos, repr(self.text[self.pos : self.pos + 10])
-            )
-        )  # TODO: better errors
+def translate(source, file_env=None):
+    state = State(source, file_env=file_env)
+    res = parse_block(state, preamble=True)
+    return res

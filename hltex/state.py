@@ -1,4 +1,4 @@
-from .newcontrol import commands, environments
+from .control import commands, environments
 
 
 class State:

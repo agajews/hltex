@@ -1,5 +1,5 @@
-from hltex.newtranslator import parse_native_control
 from hltex.state import State
+from hltex.translator import parse_native_control
 
 
 def test_parse():

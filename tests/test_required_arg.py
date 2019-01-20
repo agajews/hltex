@@ -1,8 +1,8 @@
 import pytest
 
 from hltex.errors import MissingArgument, UnexpectedEOF
-from hltex.newtranslator import parse_required_arg
 from hltex.state import State
+from hltex.translator import parse_required_arg
 
 
 def test_parse():

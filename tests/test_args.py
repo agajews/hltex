@@ -1,8 +1,8 @@
 import pytest
 
 from hltex.errors import UnexpectedEOF
-from hltex.newtranslator import parse_args
 from hltex.state import State
+from hltex.translator import parse_args
 
 
 def test_parse():

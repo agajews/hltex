@@ -1,6 +1,6 @@
 from hltex.context import increment
-from hltex.newtranslator import parse_raw_environment_body
 from hltex.state import State
+from hltex.translator import parse_raw_environment_body
 
 
 def test_parse():

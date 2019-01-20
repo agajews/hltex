@@ -1,6 +1,6 @@
-from hltex.newcontrol import Environment
-from hltex.newtranslator import parse_custom_environment
+from hltex.control import Environment
 from hltex.state import State
+from hltex.translator import parse_custom_environment
 
 
 def test_parse():

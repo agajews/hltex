@@ -1,8 +1,8 @@
 import pytest
 
 from hltex.errors import InvalidSyntax
-from hltex.newtranslator import parse_block
 from hltex.state import State
+from hltex.translator import parse_block
 
 
 def test_parse():
@@ -152,25 +152,25 @@ def test_indented_not_end_empty():
 
 
 def test_nested():
-    source = "\\eq:\n  \\split:\n    \\textbf{Hello}"
+    source = "\\equation:\n  \\split:\n    \\textbf{Hello}"
     state = State(source)
     res = state.run(parse_block)
     print(res)
     assert (
         res
-        == "\\begin{eq}\n  \\begin{split}\n    \\textbf{Hello}\n  \\end{split}\n\\end{eq}"
+        == "\\begin{equation}\n  \\begin{split}\n    \\textbf{Hello}\n  \\end{split}\n\\end{equation}"
     )
     assert state.pos == len(source)
 
 
 def test_nested_not_start():
-    source = "123\\eq:\n  \\split:\n    \\textbf{Hello}"
+    source = "123\\equation:\n  \\split:\n    \\textbf{Hello}"
     state = State(source)
     res = state.run(parse_block)
     print(repr(res))
     assert (
         res
-        == "123\\begin{eq}\n  \\begin{split}\n    \\textbf{Hello}\n  \\end{split}\n\\end{eq}"
+        == "123\\begin{equation}\n  \\begin{split}\n    \\textbf{Hello}\n  \\end{split}\n\\end{equation}"
     )
     assert state.pos == len(source)
 
@@ -208,44 +208,45 @@ def test_control_both_args_unexpected():
 
 
 def test_not_eof():
-    source = "\\eq:\n  \\textbf{Hello}\n123"
+    source = "\\equation:\n  \\textbf{Hello}\n123"
     state = State(source)
     res = state.run(parse_block)
     print(res)
-    assert res == "\\begin{eq}\n  \\textbf{Hello}\n\\end{eq}\n123"
+    assert res == "\\begin{equation}\n  \\textbf{Hello}\n\\end{equation}\n123"
     assert state.pos == len(source)
 
 
 def test_stacked():
-    source = "\\eq:\n  \\textbf{Hello}\n\\eq:\n  f(x)\n123"
+    source = "\\equation:\n  \\textbf{Hello}\n\\equation:\n  f(x)\n123"
     state = State(source)
     res = state.run(parse_block)
     print(res)
     assert (
         res
-        == "\\begin{eq}\n  \\textbf{Hello}\n\\end{eq}\n\\begin{eq}\n  f(x)\n\\end{eq}\n123"
+        == "\\begin{equation}\n  \\textbf{Hello}\n\\end{equation}\n\\begin{equation}\n  f(x)\n\\end{equation}\n123"
     )
     assert state.pos == len(source)
 
 
 def test_stacked_comment():
-    source = (
-        "\\eq: %something\n  \\textbf{Hello}%more\n  %something\n\\eq:\n  f(x)\n123"
-    )
+    source = "\\equation: %something\n  \\textbf{Hello}%more\n  %something\n\\equation:\n  f(x)\n123"
     state = State(source)
     res = state.run(parse_block)
     print(res)
     assert (
         res
-        == "\\begin{eq}\n  %something\n  \\textbf{Hello}%more\n  %something\n\\end{eq}\n\\begin{eq}\n  f(x)\n\\end{eq}\n123"
+        == "\\begin{equation}\n  %something\n  \\textbf{Hello}%more\n  %something\n\\end{equation}\n\\begin{equation}\n  f(x)\n\\end{equation}\n123"
     )
     assert state.pos == len(source)
 
 
 def test_onliner_stacked():
-    source = "\\eq: \\textbf{Hello}\n\\eq: f(x)\n123"
+    source = "\\equation: \\textbf{Hello}\n\\equation: f(x)\n123"
     state = State(source)
     res = state.run(parse_block)
     print(res)
-    assert res == "\\begin{eq}\\textbf{Hello}\\end{eq}\n\\begin{eq}f(x)\\end{eq}\n123"
+    assert (
+        res
+        == "\\begin{equation}\\textbf{Hello}\\end{equation}\n\\begin{equation}f(x)\\end{equation}\n123"
+    )
     assert state.pos == len(source)

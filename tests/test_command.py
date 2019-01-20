@@ -1,6 +1,6 @@
-from hltex.newcontrol import Command
-from hltex.newtranslator import parse_custom_command
+from hltex.control import Command
 from hltex.state import State
+from hltex.translator import parse_custom_command
 
 
 def test_arg_control():

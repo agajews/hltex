@@ -1,6 +1,6 @@
 from textwrap import dedent
 
-from hltex.newtranslator import translate
+from hltex.translator import translate
 
 
 def test_translate():
@@ -73,10 +73,10 @@ def test_translate_spacing():
         """
         \\documentclass{article}
         ===
-        \\eq:
+        \\equation:
             f(x) = 3x
 
-        \\eq:
+        \\equation:
             g(x) = 4x
         """
     )
@@ -87,12 +87,12 @@ def test_translate_spacing():
         """
         \\documentclass{article}
         \\begin{document}
-        \\begin{eq}
+        \\begin{equation}
             f(x) = 3x
-        \\end{eq}
+        \\end{equation}
 
-        \\begin{eq}
+        \\begin{equation}
             g(x) = 4x
-        \\end{eq}
+        \\end{equation}
         \\end{document}"""
     )

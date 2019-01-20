@@ -2,8 +2,8 @@ import pytest
 
 from hltex.context import increment
 from hltex.errors import UnexpectedEOF
-from hltex.newtranslator import parse_control_name
 from hltex.state import State
+from hltex.translator import parse_control_name
 
 
 def test_name():
