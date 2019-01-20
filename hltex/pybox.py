@@ -1,4 +1,5 @@
 import json
+import os
 from textwrap import dedent
 
 from .errors import DependencyError
@@ -77,3 +78,22 @@ class Pybox:
         if output["error"] is not None:
             raise DependencyError("Python execution failed: {}".format(output["error"]))
         return output["output"]
+
+    def fetch_generated_files(self):
+        import hlbox
+        import tempfile
+
+        tmp_dir = os.path.join(
+            tempfile._get_default_tempdir(),  # pylint: disable=protected-access
+            "hltex_python_"
+            + next(tempfile._get_candidate_names()),  # pylint: disable=protected-access
+        )
+        os.mkdir(tmp_dir)
+        hlbox.runline(self.sandbox, "None\n")  # trigger tar
+        hlbox.download(self.sandbox, tmp_dir)
+
+        generated_files = []
+        for f in os.listdir(tmp_dir):
+            if os.path.isfile(os.path.join(tmp_dir, f)) and f != "main.py":
+                generated_files.append(os.path.join(tmp_dir, f))
+        return generated_files
