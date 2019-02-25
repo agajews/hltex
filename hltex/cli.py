@@ -1,16 +1,15 @@
 import click
 import os
-from hltex.translator import Translator
+from hltex.translator import translate
 
 
 @click.command()
 @click.option('--out', type=click.Path(),
               help='Output file to save compiled LaTeX into (input file basename with the `.tex` extension by default)')
 @click.argument('filename', type=click.Path(exists=True))
-def translate(filename, out=None):
+def _translate(filename, out=None):
     with open(filename, 'r') as f:
-        translator = Translator(f.read())
-    res = translator.translate()
+        res = translate(f.read())
     if res is not None:
         if out is None:
             out = os.path.splitext(os.path.basename(filename))[0] + '.tex'
@@ -20,4 +19,4 @@ def translate(filename, out=None):
 
 
 if __name__ == '__main__':
-    translate()
+    _translate()

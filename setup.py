@@ -20,8 +20,8 @@ setuptools.setup(
     ],
     # scripts=['scripts/hltex'],
     entry_points = {
-        'console_scripts': ['hltex=hltex.cli:translate'],
+        'console_scripts': ['hltex=hltex.cli:_translate'],
     },
-    install_requires=['hlbox'],
+    install_requires=['hlbox', 'click'],
 )
 

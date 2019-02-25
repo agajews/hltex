@@ -1,14 +1,15 @@
 # HLTeX
 HLTeX is a new typesetting language built on top of LaTeX designed for conciseness and ease of use,
-while also adding support for additional features like inline Matplotlib figure generation
+while also adding support for additional features like inline Matplotlib figure generation, python scripting, 
 and SymPy integration.
+
+For integration with Overleaf, see [hltex-chrome](https://github.com/agajews/hltex-overleaf).
 
 ### Installation
 1. Install the compiler with `pip3 install hltex`.
-1. Install [Docker](https://www.docker.com/).
-1. Run `docker pull czentye/matplotlib-minimal`.
 
 ### Example
+Basic features:
 ```TeX
 \documentclass{article}
 \title{My First Document}
@@ -25,6 +26,46 @@ We might want to give our equation a label, like this:
 We can reference our equation with Equation \ref{eq:cubic}.
 This is automatically joined with the non-breaking space \verb{~}.
 ```
+
+This renders into proper LaTeX:
+```TeX
+\documentclass{article}
+\title{My First Document}
+\author{Your Truly}
+\begin{document}
+\section{HLTeX is Awesome}
+Here are some words that are in this section.
+Math is fun, so here's an equation:
+\begin{equation}
+    f(x) = x^2 + 3
+\end{equation}
+We might want to give our equation a label, like this:
+\begin{equation}\label{eq:cubic}
+    f(x) = x^3 - 4x^2 + 2
+\end{equation}
+We can reference our equation with Equation \ref{eq:cubic}.
+This is automatically joined with the non-breaking space \verb{~}.
+\end{document}
+```
+
+See [Syntax](#syntax) and [Advanced Features](#advanced-features) for details.
+
+
+### Usage
+To compile a file into LaTeX, you can use our CLI utility, like this:
+```
+hltex myfile.hltex
+```
+By default, this will put the resulting LaTeX code into a file called `myfile.tex`, at which point you can run
+```
+pdflatex myfile.tex
+```
+to generate a PDF.
+Optionally, you can specify your own output file, like this:
+```
+hltex myfile.hltex --out myotherfile.tex
+```
+
 
 ### Syntax
 HLTeX supports two kinds of macros: *commands* and *environments*.
@@ -62,24 +103,19 @@ HLTeX separates these two parts by `===` (or optionally more equals signs, but a
 In the preamble, only commands and their arguments are allowed--in particular, this means
 environments can only be created in the document (i.e. after the `===`).
 
-### Usage
-To compile a file into LaTeX, you can use our CLI utility, like this:
-```
-hltex myfile.hltex
-```
-By default, this will put the resulting LaTeX code into a file called `myfile.tex`, at which point you can run
-```
-pdflatex myfile.tex
-```
-to generate a PDF.
-Optionally, you can specify your own output file, like this:
-```
-hltex myfile.hltex --out myotherfile.tex
-```
+
+### Advanced Features
+
+#### Inline Matplotlib
+
+1. Install and launch [Docker](https://www.docker.com/).
+1. Run `docker pull czentye/matplotlib-minimal`.
+
+[example coming]
 
 
-### Inline-python support
-We use (Epicbox)[https://github.com/StepicOrg/epicbox] and (Docker)[https://hub.docker.com/]. After installing Docker, run
+#### Inline-python support
+We use [Epicbox](https://github.com/StepicOrg/epicbox) and [Docker](https://hub.docker.com/). After installing Docker, run
 
 ```
 pip install epicbox
@@ -89,3 +125,11 @@ docker pull python:3.6.5-alpine
 Now you can run python code in HLTeX and have save its output directly to your generated LaTeX file!
 
 [example coming]
+
+
+### Development
+
+To install locally, clone this repo and run `pip install -e PATH_TO_REPO.` You may need sudo permissions.
+
+Test documentation and contribution guidelines incoming.
+
