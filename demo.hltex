@@ -1,9 +1,12 @@
-\documentclass{article}
 \eq: line(x) = the end
-\verb{normal%withcomments{wow get out\}}
-\pysplice:
-    print('\n'.join(['\\newcommand{\cal%s}{\mathcal{%s}}'
-                         % (c, c) for c in ['F', 'G', 'H', 'I', 'D', 'B']]))
+
+% TODO
+% these lines should work but currently don't
+% \verb{normal%withcomments{wow get out\}}
+% \pysplice:
+%     print('\n'.join(['\\newcommand{\cal%s}{\mathcal{%s}}'
+%                          % (c, c) for c in ['F', 'G', 'H', 'I', 'D', 'B']]))
+
 \title{a Title: for you}
 \notanenvironment\colon
 

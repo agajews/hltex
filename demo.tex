@@ -1,15 +1,18 @@
-\documentclass{article}
-\begin{equation} line(x) = the end\end{equation}
-\verb{normal%withcomments{wow get out\}}
-\newcommand{\calF}{\mathcal{F}}
-\newcommand{\calG}{\mathcal{G}}
-\newcommand{\calH}{\mathcal{H}}
-\newcommand{\calI}{\mathcal{I}}
-\newcommand{\calD}{\mathcal{D}}
-\newcommand{\calB}{\mathcal{B}}
+\begin{equation}line(x) = the end\end{equation}
+
+% TODO
+% these lines should work but currently don't
+% \verb{normal%withcomments{wow get out\}}
+% \pysplice:
+%     print('\n'.join(['\\newcommand{\cal%s}{\mathcal{%s}}'
+%                          % (c, c) for c in ['F', 'G', 'H', 'I', 'D', 'B']]))
 
 \title{a Title: for you}
-\notanenvironment:
+\notanenvironment\colon
+
+% \newcommand{\mycommand}[1]{\textbf{#1}}
+% \let: \mycommand{arg} = \textbf{arg}  % backslash is optional
+
 \begin{document}
 The document environment is the only one which doesn't need to be indented.
 \section{Some Words}
@@ -21,7 +24,7 @@ Math is fun, so here's an equation: %hello
 34
 
 
-\begin{equation} f(x) = \textbf{one}Liner with inline commands \end{equation}% even in-line comments!
+\begin{equation}f(x) = \textbf{one}Liner with inline commands % even in-line comments!\end{equation}
 
 We might want to give our equation a label, like this:
 \begin{equation}\label{eq:cubic}
@@ -34,18 +37,17 @@ We might want to give our equation a label, like this:
 \end{equation}
 you
 
-Or start at the \textbf{middle} of a \begin{equation} line(x) = the end\end{equation}
+Or start at the \textbf{middle} of a \begin{equation}line(x) = the end\end{equation}
 
 Or over multiple lines:
 \begin{equation}\label{eq:cubic}
     f(x) = x^3 - 4x^2 + 2
-    \begin{equation}
+    \eq:
         hi
 
         there
         meeee  % woah
         me
-    \end{equation}
 
     g(x) = f
 \end{equation}

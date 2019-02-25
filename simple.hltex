@@ -1,6 +1,8 @@
 \documentclass{article}
 \title{My First Document}
 \author{Your Truly}
+\pysplice:
+    print("34")
 ===
 \section{HLTeX is Awesome}
 Here are some words that are in this section.
